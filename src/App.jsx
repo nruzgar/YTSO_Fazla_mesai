@@ -179,6 +179,8 @@ function TextArea(props) {
         fontSize: 14,
         boxSizing: "border-box",
         resize: "vertical",
+        color: "#0f172a",
+        WebkitTextFillColor: "#0f172a",
         ...props.style,
       }}
     />
