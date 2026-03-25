@@ -895,4 +895,3 @@ export default function App() {
     </AppShell>
   );
 }
-mobil input fix
