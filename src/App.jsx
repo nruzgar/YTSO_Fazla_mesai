@@ -660,7 +660,17 @@ export default function App() {
         defaultStyle: { font: "Roboto", fontSize: 8, color: "#0f172a" },
         images: logoDataUrl ? { logo: logoDataUrl } : {},
       };
-      pdfMake.createPdf(docDefinition).download(`rapor-${reportMode === "monthly" ? selectedMonth : selectedYear}.pdf`);
+      const userName = filteredUserName
+  ?.replace(/ /g, "_")
+  .replace(/[^a-zA-Z0-9_ğüşöçıİĞÜŞÖÇ]/g, "");
+
+const period = reportMode === "monthly"
+  ? selectedMonth
+  : selectedYear;
+
+pdfMake.createPdf(docDefinition).download(
+  `${userName}-${period}-mesai-raporu.pdf`
+);
     } catch (error) {
       console.error("PDF oluşturma hatası:", error);
       alert("PDF oluşturulurken hata oluştu. F12 > Console ekranını kontrol edin.");
