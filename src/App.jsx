@@ -159,6 +159,8 @@ function TextInput(props) {
         background: "#fff",
         fontSize: 14,
         boxSizing: "border-box",
+        color: "#0f172a",
+        WebkitTextFillColor: "#0f172a",
         ...props.style,
       }}
     />
@@ -200,6 +202,8 @@ function SelectInput(props) {
         background: "#fff",
         fontSize: 14,
         boxSizing: "border-box",
+        color: "#0f172a",
+        WebkitTextFillColor: "#0f172a",
         ...props.style,
       }}
     />
