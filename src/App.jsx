@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
+import bcrypt from "bcryptjs";
 
-const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v2";
+const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v3";
 
 function formatMonth(monthKey) {
   if (!monthKey) return "";
@@ -73,7 +74,8 @@ function AppShell({ children, mobile }) {
         background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
         padding: mobile ? 12 : 24,
         paddingBottom: mobile ? 96 : 24,
-        fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontFamily:
+          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         color: "#0f172a",
       }}
     >
@@ -123,7 +125,7 @@ function StatPill({ label, value, strong }) {
   );
 }
 
-function PrimaryButton({ children, onClick, type = "button", full, active, danger }) {
+function PrimaryButton({ children, onClick, type = "button", full, active, danger, ghost }) {
   return (
     <button
       type={type}
@@ -132,8 +134,8 @@ function PrimaryButton({ children, onClick, type = "button", full, active, dange
         minHeight: 46,
         padding: "12px 16px",
         borderRadius: 14,
-        border: danger ? "1px solid #fecaca" : active ? "1px solid #2563eb" : "1px solid #cbd5e1",
-        background: danger ? "#fef2f2" : active ? "#2563eb" : "#fff",
+        border: danger ? "1px solid #fecaca" : active ? "1px solid #2563eb" : ghost ? "1px solid transparent" : "1px solid #cbd5e1",
+        background: danger ? "#fef2f2" : active ? "#2563eb" : ghost ? "transparent" : "#fff",
         color: danger ? "#b91c1c" : active ? "#fff" : "#0f172a",
         fontWeight: 700,
         cursor: "pointer",
@@ -157,6 +159,8 @@ function TextInput(props) {
         borderRadius: 14,
         border: "1px solid #cbd5e1",
         background: "#fff",
+        color: "#0f172a",
+        WebkitTextFillColor: "#0f172a",
         fontSize: 14,
         boxSizing: "border-box",
         color: "#0f172a",
@@ -178,6 +182,8 @@ function TextArea(props) {
         borderRadius: 14,
         border: "1px solid #cbd5e1",
         background: "#fff",
+        color: "#0f172a",
+        WebkitTextFillColor: "#0f172a",
         fontSize: 14,
         boxSizing: "border-box",
         resize: "vertical",
@@ -200,6 +206,8 @@ function SelectInput(props) {
         borderRadius: 14,
         border: "1px solid #cbd5e1",
         background: "#fff",
+        color: "#0f172a",
+        WebkitTextFillColor: "#0f172a",
         fontSize: 14,
         boxSizing: "border-box",
         color: "#0f172a",
@@ -251,26 +259,30 @@ export default function App() {
 
   const [login, setLogin] = useState({ name: "", password: "" });
   const [newUser, setNewUser] = useState({ name: "", password: "", department: "" });
+  const [passwordForm, setPasswordForm] = useState({ oldPassword: "", newPassword: "", confirmPassword: "" });
   const [form, setForm] = useState({ date: "", start: "", end: "", description: "", work_type: "hafta_ici" });
   const [selectedUser, setSelectedUser] = useState("all");
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [selectedYear, setSelectedYear] = useState("");
+  const [reportMode, setReportMode] = useState("monthly");
 
   const mobile = viewportWidth < 768;
   const tablet = viewportWidth >= 768 && viewportWidth < 1180;
 
+  const loadAll = async () => {
+    const [{ data: usersData }, { data: entriesData }, { data: logsData }, { data: settingsData }] = await Promise.all([
+      supabase.from("users").select("*").order("name"),
+      supabase.from("entries").select("*").order("date", { ascending: false }),
+      supabase.from("logs").select("*").order("created_at", { ascending: false }),
+      supabase.from("settings").select("*").limit(1).maybeSingle(),
+    ]);
+    setUsers(usersData || []);
+    setEntries(entriesData || []);
+    setLogs(logsData || []);
+    if (settingsData) setSettings(settingsData);
+  };
+
   useEffect(() => {
-    const loadAll = async () => {
-      const [{ data: usersData }, { data: entriesData }, { data: logsData }, { data: settingsData }] = await Promise.all([
-        supabase.from("users").select("*").order("name"),
-        supabase.from("entries").select("*").order("date", { ascending: false }),
-        supabase.from("logs").select("*").order("created_at", { ascending: false }),
-        supabase.from("settings").select("*").limit(1).maybeSingle(),
-      ]);
-      setUsers(usersData || []);
-      setEntries(entriesData || []);
-      setLogs(logsData || []);
-      if (settingsData) setSettings(settingsData);
-    };
     loadAll();
   }, []);
 
@@ -287,19 +299,6 @@ export default function App() {
       window.removeEventListener("offline", onOffline);
     };
   }, []);
-
-  const loadAll = async () => {
-    const [{ data: usersData }, { data: entriesData }, { data: logsData }, { data: settingsData }] = await Promise.all([
-      supabase.from("users").select("*").order("name"),
-      supabase.from("entries").select("*").order("date", { ascending: false }),
-      supabase.from("logs").select("*").order("created_at", { ascending: false }),
-      supabase.from("settings").select("*").limit(1).maybeSingle(),
-    ]);
-    setUsers(usersData || []);
-    setEntries(entriesData || []);
-    setLogs(logsData || []);
-    if (settingsData) setSettings(settingsData);
-  };
 
   const addLog = async (message) => {
     if (!online) return;
@@ -329,11 +328,30 @@ export default function App() {
   }, [online]);
 
   const loginUser = async () => {
-    const { data, error } = await supabase.from("users").select("*").eq("name", login.name).eq("password", login.password).maybeSingle();
+    const { data, error } = await supabase.from("users").select("*").eq("name", login.name).maybeSingle();
     if (error || !data) {
       alert("Hatalı giriş");
       return;
     }
+
+    const passwordHash = data.password_hash;
+    let ok = false;
+
+    if (passwordHash) {
+      ok = await bcrypt.compare(login.password, passwordHash);
+    } else if (data.password) {
+      ok = login.password === data.password;
+      if (ok) {
+        const newHash = await bcrypt.hash(login.password, 10);
+        await supabase.from("users").update({ password_hash: newHash }).eq("id", data.id);
+      }
+    }
+
+    if (!ok) {
+      alert("Hatalı giriş");
+      return;
+    }
+
     setUser(data);
   };
 
@@ -341,7 +359,10 @@ export default function App() {
     setUser(null);
     setSelectedUser("all");
     setSelectedMonth("");
+    setSelectedYear("");
+    setReportMode("monthly");
     setActiveTab("entry");
+    setPasswordForm({ oldPassword: "", newPassword: "", confirmPassword: "" });
   };
 
   const addUser = async () => {
@@ -349,9 +370,11 @@ export default function App() {
       alert("Ad, şifre ve birim zorunludur.");
       return;
     }
+
+    const password_hash = await bcrypt.hash(newUser.password, 10);
     const { error } = await supabase.from("users").insert({
       name: newUser.name,
-      password: newUser.password,
+      password_hash,
       role: "user",
       department: newUser.department,
     });
@@ -361,6 +384,49 @@ export default function App() {
     }
     await addLog(`Yeni kullanıcı eklendi: ${newUser.name}`);
     setNewUser({ name: "", password: "", department: "" });
+    loadAll();
+  };
+
+  const changePassword = async () => {
+    if (!user) return;
+    if (!passwordForm.oldPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      alert("Tüm şifre alanlarını doldurun.");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      alert("Yeni şifreler eşleşmiyor.");
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      alert("Yeni şifre en az 6 karakter olmalıdır.");
+      return;
+    }
+
+    const { data, error } = await supabase.from("users").select("*").eq("id", user.id).maybeSingle();
+    if (error || !data) {
+      alert("Kullanıcı bilgisi alınamadı.");
+      return;
+    }
+
+    let oldOk = false;
+    if (data.password_hash) oldOk = await bcrypt.compare(passwordForm.oldPassword, data.password_hash);
+    else if (data.password) oldOk = passwordForm.oldPassword === data.password;
+
+    if (!oldOk) {
+      alert("Eski şifre yanlış.");
+      return;
+    }
+
+    const password_hash = await bcrypt.hash(passwordForm.newPassword, 10);
+    const { error: updateError } = await supabase.from("users").update({ password_hash, password: null }).eq("id", user.id);
+    if (updateError) {
+      alert("Şifre güncellenemedi: " + updateError.message);
+      return;
+    }
+
+    await addLog(`${user.name} şifresini değiştirdi`);
+    setPasswordForm({ oldPassword: "", newPassword: "", confirmPassword: "" });
+    alert("Şifre başarıyla güncellendi.");
     loadAll();
   };
 
@@ -411,7 +477,9 @@ export default function App() {
       duration: calcDuration(form.start, form.end),
     };
     if (!online) {
-      enqueueOfflineEntry(payload);
+      const queue = getQueue();
+      queue.push({ ...payload, _queuedAt: new Date().toISOString() });
+      setQueue(queue);
       setEntries((prev) => [{ id: `offline-${Date.now()}`, ...payload }, ...prev]);
       setForm({ date: "", start: "", end: "", description: "", work_type: "hafta_ici" });
       alert("İnternet yok. Kayıt cihazda tutuldu; bağlantı gelince gönderilecek.");
@@ -427,14 +495,17 @@ export default function App() {
     loadAll();
   };
 
+  const months = [...new Set(entries.map((x) => x.date?.slice(0, 7)).filter(Boolean))].sort().reverse();
+  const years = [...new Set(entries.map((x) => x.date?.slice(0, 4)).filter(Boolean))].sort().reverse();
+
   const visibleEntries = useMemo(() => {
     let data = user?.role === "admin" ? entries : entries.filter((x) => x.user_id === user?.id);
     if (user?.role === "admin" && selectedUser !== "all") data = data.filter((x) => x.user_id === selectedUser);
-    if (selectedMonth) data = data.filter((x) => x.date?.startsWith(selectedMonth));
+    if (reportMode === "monthly" && selectedMonth) data = data.filter((x) => x.date?.startsWith(selectedMonth));
+    if (reportMode === "yearly" && selectedYear) data = data.filter((x) => x.date?.startsWith(selectedYear));
     return data;
-  }, [entries, user, selectedUser, selectedMonth]);
+  }, [entries, user, selectedUser, selectedMonth, selectedYear, reportMode]);
 
-  const months = [...new Set(entries.map((x) => x.date?.slice(0, 7)).filter(Boolean))].sort().reverse();
   const totalsByType = visibleEntries.reduce(
     (acc, item) => {
       const mins = parseDurationToMinutes(item.duration);
@@ -448,8 +519,12 @@ export default function App() {
   );
 
   const exportPDF = async () => {
-    if (!selectedMonth) {
+    if (reportMode === "monthly" && !selectedMonth) {
       alert("Lütfen ay seçin.");
+      return;
+    }
+    if (reportMode === "yearly" && !selectedYear) {
+      alert("Lütfen yıl seçin.");
       return;
     }
     try {
@@ -481,6 +556,7 @@ export default function App() {
       const filteredUserName = user?.role === "admin"
         ? (selectedUser === "all" ? "Tüm kullanıcılar" : (users.find((u) => u.id === selectedUser)?.name || "Seçili kullanıcı"))
         : user?.name;
+      const periodLabel = reportMode === "monthly" ? formatMonth(selectedMonth) : `${selectedYear} YILI`;
 
       const body = [
         ["No", "Tarih", "Başl.", "Bitiş", "Süre", "Mesai Türü", "Açıklama", "Kişi"].map((x) => ({ text: x, style: "tableHeader" })),
@@ -520,7 +596,7 @@ export default function App() {
               width: 240,
               stack: [
                 { text: "FAZLA ÇALIŞMA TAKİP RAPORU", style: "reportTitle", alignment: "right" },
-                { text: formatMonth(selectedMonth), style: "subTitle", alignment: "right" },
+                { text: periodLabel, style: "subTitle", alignment: "right" },
                 { text: `Tarih: ${formatToday()}`, style: "subInfo", alignment: "right" },
               ],
             },
@@ -584,7 +660,7 @@ export default function App() {
         defaultStyle: { font: "Roboto", fontSize: 8, color: "#0f172a" },
         images: logoDataUrl ? { logo: logoDataUrl } : {},
       };
-      pdfMake.createPdf(docDefinition).download(`rapor-${selectedMonth}.pdf`);
+      pdfMake.createPdf(docDefinition).download(`rapor-${reportMode === "monthly" ? selectedMonth : selectedYear}.pdf`);
     } catch (error) {
       console.error("PDF oluşturma hatası:", error);
       alert("PDF oluşturulurken hata oluştu. F12 > Console ekranını kontrol edin.");
@@ -598,9 +674,7 @@ export default function App() {
           <Card style={{ padding: mobile ? 18 : 26 }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 18 }}>
               <img src="/logo.png" alt="YTSO Logo" style={{ height: mobile ? 56 : 72, objectFit: "contain" }} />
-              <div style={{ fontSize: mobile ? 24 : 28, fontWeight: 900, textAlign: "center", lineHeight: 1.15, letterSpacing: "-0.03em" }}>
-                YTSO MESAİ GİRİŞ SİSTEMİ
-              </div>
+              <div style={{ fontSize: mobile ? 24 : 28, fontWeight: 900, textAlign: "center", lineHeight: 1.15, letterSpacing: "-0.03em" }}>YTSO MESAİ GİRİŞ SİSTEMİ</div>
               <div style={{ fontSize: 13, color: "#64748b", textAlign: "center" }}>Mobil ve masaüstü uyumlu kurumsal mesai yönetimi</div>
             </div>
             <div style={{ display: "grid", gap: 10 }}>
@@ -640,25 +714,36 @@ export default function App() {
         </div>
 
         <Card style={{ padding: mobile ? 14 : 18 }}>
-          <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : tablet ? "1fr 1fr" : user.role === "admin" ? "1fr 1fr auto" : "1fr auto", gap: 12, alignItems: "center" }}>
+          <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : tablet ? "1fr 1fr" : user.role === "admin" ? "1fr 1fr 1fr auto" : "1fr 1fr auto", gap: 12, alignItems: "center" }}>
+            <SelectInput value={reportMode} onChange={(e) => setReportMode(e.target.value)}>
+              <option value="monthly">Aylık Rapor</option>
+              <option value="yearly">Yıllık Rapor</option>
+            </SelectInput>
             {user.role === "admin" && (
               <SelectInput value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)}>
                 <option value="all">Tüm kullanıcılar</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </SelectInput>
             )}
-            <SelectInput value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-              <option value="">Ay seçin</option>
-              {months.map((m) => <option key={m} value={m}>{formatMonth(m)}</option>)}
-            </SelectInput>
+            {reportMode === "monthly" ? (
+              <SelectInput value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                <option value="">Ay seçin</option>
+                {months.map((m) => <option key={m} value={m}>{formatMonth(m)}</option>)}
+              </SelectInput>
+            ) : (
+              <SelectInput value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
+                <option value="">Yıl seçin</option>
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </SelectInput>
+            )}
             {!mobile && <PrimaryButton onClick={exportPDF}>PDF Al</PrimaryButton>}
           </div>
         </Card>
 
         <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
-          {["entry", "report", "records", ...(user.role === "admin" ? ["admin"] : [])].map((tab) => (
+          {["entry", "report", "records", "security", ...(user.role === "admin" ? ["admin"] : [])].map((tab) => (
             <PrimaryButton key={tab} active={activeTab === tab} onClick={() => setActiveTab(tab)}>
-              {tab === "entry" ? "Mesai Girişi" : tab === "report" ? "Rapor" : tab === "records" ? "Kayıtlar" : "Yönetim Paneli"}
+              {tab === "entry" ? "Mesai Girişi" : tab === "report" ? "Rapor" : tab === "records" ? "Kayıtlar" : tab === "security" ? "Güvenlik" : "Yönetim Paneli"}
             </PrimaryButton>
           ))}
         </div>
@@ -687,7 +772,7 @@ export default function App() {
 
         {activeTab === "report" && (
           <Card style={{ padding: mobile ? 14 : 20 }}>
-            <SectionTitle title="Rapor Önizleme" subtitle="PDF çıktısı için ay bazlı görünüm." />
+            <SectionTitle title="Rapor Önizleme" subtitle={reportMode === "monthly" ? "Aylık görünüm" : "Yıllık görünüm"} />
             <div style={{ overflowX: "auto" }}>
               <div style={{ minWidth: 940 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14 }}>
@@ -699,7 +784,7 @@ export default function App() {
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 800 }}>{formatMonth(selectedMonth)}</div>
+                    <div style={{ fontWeight: 800 }}>{reportMode === "monthly" ? formatMonth(selectedMonth) : `${selectedYear || ""} YILI`}</div>
                     <div style={{ fontSize: 12, color: "#64748b" }}>Tarih: {formatToday()}</div>
                   </div>
                 </div>
@@ -734,15 +819,21 @@ export default function App() {
         {activeTab === "records" && (
           <Card style={{ padding: mobile ? 14 : 20 }}>
             <SectionTitle title="Kayıtlar" subtitle="Mobilde kart görünümü, masaüstünde hızlı tarama." />
-            {mobile ? (
-              <div style={{ display: "grid", gap: 10 }}>
-                {visibleEntries.map((item) => <EntryCard key={item.id} item={item} mobile={mobile} />)}
-              </div>
-            ) : (
-              <div style={{ display: "grid", gap: 10 }}>
-                {visibleEntries.map((item) => <EntryCard key={item.id} item={item} mobile={mobile} />)}
-              </div>
-            )}
+            <div style={{ display: "grid", gap: 10 }}>
+              {visibleEntries.map((item) => <EntryCard key={item.id} item={item} mobile={mobile} />)}
+            </div>
+          </Card>
+        )}
+
+        {activeTab === "security" && (
+          <Card style={{ padding: mobile ? 14 : 20 }}>
+            <SectionTitle title="Güvenlik" subtitle="Şifre değiştirme ve hesap güvenliği." />
+            <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 12 }}>
+              <TextInput type="password" placeholder="Eski şifre" value={passwordForm.oldPassword} onChange={(e) => setPasswordForm((p) => ({ ...p, oldPassword: e.target.value }))} />
+              <TextInput type="password" placeholder="Yeni şifre" value={passwordForm.newPassword} onChange={(e) => setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))} />
+              <TextInput type="password" placeholder="Yeni şifre tekrar" value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))} />
+            </div>
+            <PrimaryButton onClick={changePassword} full={mobile}>Şifreyi Güncelle</PrimaryButton>
           </Card>
         )}
 
@@ -795,15 +886,7 @@ export default function App() {
       </div>
 
       {mobile && user && (
-        <div
-          style={{
-            position: "fixed",
-            left: 12,
-            right: 12,
-            bottom: 12,
-            zIndex: 40,
-          }}
-        >
+        <div style={{ position: "fixed", left: 12, right: 12, bottom: 12, zIndex: 40 }}>
           <Card style={{ padding: 10, borderRadius: 20, boxShadow: "0 14px 34px rgba(15,23,42,0.18)" }}>
             <PrimaryButton full active onClick={exportPDF}>PDF Al</PrimaryButton>
           </Card>
