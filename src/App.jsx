@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import bcrypt from "bcryptjs";
 
-const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v3";
+const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v4";
 
 function formatMonth(monthKey) {
   if (!monthKey) return "";
@@ -339,6 +339,7 @@ export default function App() {
     work_type: "hafta_ici",
   });
   const [selectedUser, setSelectedUser] = useState("all");
+  const [entryUserId, setEntryUserId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [reportMode, setReportMode] = useState("monthly");
@@ -459,6 +460,7 @@ export default function App() {
   const logout = () => {
     setUser(null);
     setSelectedUser("all");
+    setEntryUserId("");
     setSelectedMonth("");
     setSelectedYear("");
     setReportMode("monthly");
@@ -597,6 +599,7 @@ export default function App() {
   const submitEntry = async (e) => {
     e.preventDefault();
     if (!user) return;
+
     if (
       !form.date ||
       !form.start ||
@@ -608,9 +611,19 @@ export default function App() {
       return;
     }
 
+    const targetUser =
+      user.role === "admin" && entryUserId
+        ? users.find((u) => u.id === entryUserId)
+        : user;
+
+    if (!targetUser) {
+      alert("Lütfen kayıt girilecek kullanıcıyı seçin.");
+      return;
+    }
+
     const payload = {
-      user_id: user.id,
-      user_name: user.name,
+      user_id: targetUser.id,
+      user_name: targetUser.name,
       date: form.date,
       start: form.start,
       end: form.end,
@@ -631,6 +644,7 @@ export default function App() {
         description: "",
         work_type: "hafta_ici",
       });
+      if (user.role === "admin") setEntryUserId("");
       alert("İnternet yok. Kayıt cihazda tutuldu; bağlantı gelince gönderilecek.");
       return;
     }
@@ -640,7 +654,13 @@ export default function App() {
       alert("Mesai kaydı eklenemedi: " + error.message);
       return;
     }
-    await addLog(`${user.name} mesai kaydı ekledi`);
+
+    if (user.role === "admin" && targetUser.id !== user.id) {
+      await addLog(`${user.name}, ${targetUser.name} adına mesai kaydı ekledi`);
+    } else {
+      await addLog(`${targetUser.name} mesai kaydı ekledi`);
+    }
+
     setForm({
       date: "",
       start: "",
@@ -648,6 +668,7 @@ export default function App() {
       description: "",
       work_type: "hafta_ici",
     });
+    if (user.role === "admin") setEntryUserId("");
     loadAll();
   };
 
@@ -1149,7 +1170,7 @@ export default function App() {
             </Field>
 
             {user.role === "admin" && (
-              <Field label="Kullanıcı">
+              <Field label="Rapor Kullanıcısı">
                 <SelectInput
                   value={selectedUser}
                   onChange={(e) => setSelectedUser(e.target.value)}
@@ -1234,11 +1255,31 @@ export default function App() {
                     ? "1fr"
                     : tablet
                     ? "1fr 1fr"
+                    : user.role === "admin"
+                    ? "repeat(5, minmax(0, 1fr))"
                     : "repeat(4, minmax(0, 1fr))",
                   gap: 12,
                   marginBottom: 12,
                 }}
               >
+                {user.role === "admin" && (
+                  <Field label="Kayıt Girilecek Kullanıcı">
+                    <SelectInput
+                      value={entryUserId}
+                      onChange={(e) => setEntryUserId(e.target.value)}
+                    >
+                      <option value="">Kullanıcı seçin</option>
+                      {users
+                        .filter((u) => u.role !== "admin")
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                    </SelectInput>
+                  </Field>
+                )}
+
                 <Field label="Tarih">
                   <TextInput
                     type="date"
