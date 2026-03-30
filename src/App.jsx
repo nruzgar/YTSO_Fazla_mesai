@@ -48,8 +48,9 @@ function parseDurationToMinutes(duration) {
 }
 
 function minutesToText(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
+  const safeMinutes = Number(minutes) || 0;
+  const h = Math.floor(safeMinutes / 60);
+  const m = safeMinutes % 60;
   return `${h} saat ${String(m).padStart(2, "0")} dakika`;
 }
 
@@ -179,6 +180,362 @@ function StatPill({ label, value, strong }) {
       >
         {value}
       </div>
+    </div>
+  );
+}
+
+function SimpleBarChart({ data, mobile }) {
+  const maxValue = Math.max(...data.map((x) => x.minutes), 0);
+
+  if (!data.length) {
+    return (
+      <div
+        style={{
+          padding: 18,
+          border: "1px dashed #cbd5e1",
+          borderRadius: 16,
+          color: "#64748b",
+          fontSize: 13,
+          background: "#f8fafc",
+        }}
+      >
+        Seçilen ay için grafik verisi bulunamadı.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: 18,
+        padding: mobile ? 12 : 16,
+        background: "#fff",
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
+        Kullanıcı Bazlı Aylık Mesai Grafiği
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {data.map((item, index) => {
+          const width = maxValue > 0 ? `${(item.minutes / maxValue) * 100}%` : "0%";
+
+          return (
+            <div key={`${item.userId}-${index}`} style={{ display: "grid", gap: 6 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  fontSize: 13,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ fontWeight: 700 }}>{item.name}</div>
+                <div style={{ color: "#475569" }}>
+                  {item.durationText} · {item.recordCount} kayıt
+                </div>
+              </div>
+
+              <div
+                style={{
+                  width: "100%",
+                  height: 12,
+                  borderRadius: 999,
+                  background: "#e2e8f0",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width,
+                    height: "100%",
+                    borderRadius: 999,
+                    background: index === 0 ? "#1d4ed8" : "#60a5fa",
+                    transition: "width .25s ease",
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CorporatePieChart({ data, mobile }) {
+  const filtered = data.filter((x) => x.minutes > 0).slice(0, 6);
+  const total = filtered.reduce((sum, item) => sum + item.minutes, 0);
+
+  const colors = ["#1e3a8a", "#2563eb", "#0f766e", "#0891b2", "#7c3aed", "#f59e0b"];
+
+  if (!filtered.length || total <= 0) {
+    return (
+      <div
+        style={{
+          padding: 18,
+          border: "1px dashed #cbd5e1",
+          borderRadius: 16,
+          color: "#64748b",
+          fontSize: 13,
+          background: "#f8fafc",
+        }}
+      >
+        Seçilen ay için pasta grafik verisi bulunamadı.
+      </div>
+    );
+  }
+
+  const cx = 110;
+  const cy = 110;
+  const r = 72;
+  const strokeWidth = 30;
+  const circumference = 2 * Math.PI * r;
+
+  let accumulated = 0;
+
+  return (
+    <div
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: 18,
+        padding: mobile ? 12 : 16,
+        background: "#fff",
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
+        Mesai Dağılımı
+      </div>
+      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
+        İlk 6 kullanıcının toplam mesai içindeki payı
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: mobile ? "1fr" : "240px 1fr",
+          gap: 16,
+          alignItems: "center",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <svg width="220" height="220" viewBox="0 0 220 220">
+            <circle
+              cx={cx}
+              cy={cy}
+              r={r}
+              fill="none"
+              stroke="#e2e8f0"
+              strokeWidth={strokeWidth}
+            />
+
+            {filtered.map((item, index) => {
+              const fraction = item.minutes / total;
+              const segment = fraction * circumference;
+              const dashArray = `${segment} ${circumference - segment}`;
+              const dashOffset = -accumulated;
+              accumulated += segment;
+
+              return (
+                <circle
+                  key={item.userId}
+                  cx={cx}
+                  cy={cy}
+                  r={r}
+                  fill="none"
+                  stroke={colors[index % colors.length]}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={dashArray}
+                  strokeDashoffset={dashOffset}
+                  strokeLinecap="butt"
+                  transform={`rotate(-90 ${cx} ${cy})`}
+                />
+              );
+            })}
+
+            <circle cx={cx} cy={cy} r="48" fill="#fff" />
+            <text
+              x={cx}
+              y={cy - 4}
+              textAnchor="middle"
+              fontSize="14"
+              fontWeight="800"
+              fill="#0f172a"
+            >
+              Toplam
+            </text>
+            <text
+              x={cx}
+              y={cy + 18}
+              textAnchor="middle"
+              fontSize="12"
+              fill="#475569"
+            >
+              {minutesToText(total)}
+            </text>
+          </svg>
+        </div>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          {filtered.map((item, index) => {
+            const percent = ((item.minutes / total) * 100).toFixed(1);
+            return (
+              <div
+                key={item.userId}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "16px 1fr auto",
+                  gap: 10,
+                  alignItems: "center",
+                  padding: "8px 10px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 14,
+                  background: "#fff",
+                }}
+              >
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 999,
+                    background: colors[index % colors.length],
+                  }}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{item.name}</div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>
+                    {item.durationText} · {item.recordCount} kayıt
+                  </div>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>
+                  %{percent}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MonthlyStatsTable({ data, mobile }) {
+  if (!data.length) {
+    return (
+      <div
+        style={{
+          padding: 18,
+          border: "1px dashed #cbd5e1",
+          borderRadius: 16,
+          color: "#64748b",
+          fontSize: 13,
+          background: "#f8fafc",
+        }}
+      >
+        Seçilen ay için kullanıcı verisi bulunamadı.
+      </div>
+    );
+  }
+
+  if (mobile) {
+    return (
+      <div style={{ display: "grid", gap: 10 }}>
+        {data.map((item) => (
+          <div
+            key={item.userId}
+            style={{
+              border: "1px solid #e2e8f0",
+              borderRadius: 16,
+              padding: 12,
+              background: "#fff",
+            }}
+          >
+            <div style={{ fontWeight: 800 }}>{item.name}</div>
+            <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+              {item.department || "-"}
+            </div>
+            <div style={{ marginTop: 10, display: "grid", gap: 6, fontSize: 13 }}>
+              <div>
+                Toplam Mesai: <strong>{item.durationText}</strong>
+              </div>
+              <div>
+                Kayıt Sayısı: <strong>{item.recordCount}</strong>
+              </div>
+              <div>Hafta İçi: {minutesToText(item.hafta_ici)}</div>
+              <div>Hafta Sonu: {minutesToText(item.hafta_sonu)}</div>
+              <div>Resmi Tatil: {minutesToText(item.resmi_tatil)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: "#f8fafc" }}>
+            {[
+              "Kullanıcı",
+              "Birim",
+              "Kayıt",
+              "Hafta İçi",
+              "Hafta Sonu",
+              "Resmi Tatil",
+              "Toplam",
+            ].map((head) => (
+              <th
+                key={head}
+                style={{
+                  textAlign: "left",
+                  padding: 10,
+                  borderBottom: "1px solid #e2e8f0",
+                  color: "#334155",
+                }}
+              >
+                {head}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((item, idx) => (
+            <tr key={item.userId} style={{ background: idx % 2 === 0 ? "#fff" : "#fafcff" }}>
+              <td style={{ padding: 10, borderBottom: "1px solid #e2e8f0", fontWeight: 700 }}>
+                {item.name}
+              </td>
+              <td style={{ padding: 10, borderBottom: "1px solid #e2e8f0" }}>
+                {item.department || "-"}
+              </td>
+              <td style={{ padding: 10, borderBottom: "1px solid #e2e8f0" }}>
+                {item.recordCount}
+              </td>
+              <td style={{ padding: 10, borderBottom: "1px solid #e2e8f0" }}>
+                {minutesToText(item.hafta_ici)}
+              </td>
+              <td style={{ padding: 10, borderBottom: "1px solid #e2e8f0" }}>
+                {minutesToText(item.hafta_sonu)}
+              </td>
+              <td style={{ padding: 10, borderBottom: "1px solid #e2e8f0" }}>
+                {minutesToText(item.resmi_tatil)}
+              </td>
+              <td
+                style={{
+                  padding: 10,
+                  borderBottom: "1px solid #e2e8f0",
+                  fontWeight: 800,
+                  color: "#1e3a8a",
+                }}
+              >
+                {item.durationText}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -404,6 +761,7 @@ export default function App() {
   const [entryUserId, setEntryUserId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
+  const [adminStatsMonth, setAdminStatsMonth] = useState("");
   const [reportMode, setReportMode] = useState("monthly");
   const [editingEntryId, setEditingEntryId] = useState(null);
 
@@ -554,6 +912,7 @@ export default function App() {
     setEntryUserId("");
     setSelectedMonth("");
     setSelectedYear("");
+    setAdminStatsMonth("");
     setReportMode("monthly");
     setActiveTab("entry");
     setPasswordForm({
@@ -818,6 +1177,12 @@ export default function App() {
     .sort()
     .reverse();
 
+  useEffect(() => {
+    if (!adminStatsMonth && months.length) {
+      setAdminStatsMonth(months[0]);
+    }
+  }, [months, adminStatsMonth]);
+
   const visibleEntries = useMemo(() => {
     let data =
       user?.role === "admin"
@@ -838,6 +1203,75 @@ export default function App() {
 
     return data;
   }, [entries, user, selectedUser, selectedMonth, selectedYear, reportMode]);
+
+  const adminMonthlyStats = useMemo(() => {
+    if (user?.role !== "admin" || !adminStatsMonth) return [];
+
+    const monthEntries = entries.filter((x) => x.date?.startsWith(adminStatsMonth));
+    const nonAdminUsers = users.filter((u) => u.role !== "admin");
+
+    const result = nonAdminUsers.map((u) => {
+      const userEntries = monthEntries.filter((x) => x.user_id === u.id);
+
+      const totals = userEntries.reduce(
+        (acc, item) => {
+          const mins = parseDurationToMinutes(item.duration);
+          if (item.work_type === "hafta_sonu") acc.hafta_sonu += mins;
+          else if (item.work_type === "resmi_tatil") acc.resmi_tatil += mins;
+          else acc.hafta_ici += mins;
+
+          acc.total += mins;
+          acc.recordCount += 1;
+          return acc;
+        },
+        {
+          hafta_ici: 0,
+          hafta_sonu: 0,
+          resmi_tatil: 0,
+          total: 0,
+          recordCount: 0,
+        }
+      );
+
+      return {
+        userId: u.id,
+        name: u.name,
+        department: u.department,
+        recordCount: totals.recordCount,
+        hafta_ici: totals.hafta_ici,
+        hafta_sonu: totals.hafta_sonu,
+        resmi_tatil: totals.resmi_tatil,
+        minutes: totals.total,
+        durationText: minutesToText(totals.total),
+      };
+    });
+
+    return result.sort((a, b) => b.minutes - a.minutes);
+  }, [entries, users, user, adminStatsMonth]);
+
+  const adminStatsTotals = useMemo(() => {
+    return adminMonthlyStats.reduce(
+      (acc, item) => {
+        acc.totalMinutes += item.minutes;
+        acc.totalRecords += item.recordCount;
+        if (item.minutes > 0) acc.activeUsers += 1;
+        return acc;
+      },
+      {
+        totalMinutes: 0,
+        totalRecords: 0,
+        activeUsers: 0,
+      }
+    );
+  }, [adminMonthlyStats]);
+
+  const adminChartData = useMemo(() => {
+    return adminMonthlyStats.slice(0, 8);
+  }, [adminMonthlyStats]);
+
+  const adminPieData = useMemo(() => {
+    return adminMonthlyStats;
+  }, [adminMonthlyStats]);
 
   const totalsByType = visibleEntries.reduce(
     (acc, item) => {
@@ -1693,94 +2127,159 @@ export default function App() {
               gap: 16,
             }}
           >
-            <Card style={{ padding: mobile ? 14 : 20 }}>
-              <SectionTitle
-                title="Kullanıcı Yönetimi"
-                subtitle="Mobilde tek kolon, masaüstünde daha geniş düzen."
-              />
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: mobile ? "1fr" : "repeat(4, minmax(0, 1fr))",
-                  gap: 10,
-                  marginBottom: 14,
-                }}
-              >
-                <Field label="Kullanıcı Adı">
-                  <TextInput
-                    placeholder="Kullanıcı adı"
-                    value={newUser.name}
-                    onChange={(e) =>
-                      setNewUser((p) => ({ ...p, name: e.target.value }))
-                    }
-                  />
-                </Field>
+            <div style={{ display: "grid", gap: 16 }}>
+              <Card style={{ padding: mobile ? 14 : 20 }}>
+                <SectionTitle
+                  title="Aylık Kullanıcı İstatistikleri"
+                  subtitle="Seçilen aya göre tüm kullanıcıların toplam mesai özeti."
+                />
 
-                <Field label="Şifre">
-                  <TextInput
-                    placeholder="Şifre"
-                    value={newUser.password}
-                    onChange={(e) =>
-                      setNewUser((p) => ({ ...p, password: e.target.value }))
-                    }
-                  />
-                </Field>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: mobile ? "1fr" : "220px 1fr",
+                    gap: 12,
+                    alignItems: "end",
+                    marginBottom: 14,
+                  }}
+                >
+                  <Field label="Ay Seçimi">
+                    <SelectInput
+                      value={adminStatsMonth}
+                      onChange={(e) => setAdminStatsMonth(e.target.value)}
+                    >
+                      <option value="">Ay seçin</option>
+                      {months.map((m) => (
+                        <option key={m} value={m}>
+                          {formatMonth(m)}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  </Field>
 
-                <Field label="Birim">
-                  <TextInput
-                    placeholder="Birim"
-                    value={newUser.department}
-                    onChange={(e) =>
-                      setNewUser((p) => ({ ...p, department: e.target.value }))
-                    }
-                  />
-                </Field>
-
-                <div style={{ display: "grid", alignItems: "end" }}>
-                  <PrimaryButton onClick={addUser}>Kullanıcı Ekle</PrimaryButton>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: 10 }}>
-                {users.map((u) => (
                   <div
-                    key={u.id}
                     style={{
-                      border: "1px solid #e2e8f0",
-                      borderRadius: 16,
-                      padding: 12,
-                      display: "flex",
-                      flexDirection: mobile ? "column" : "row",
-                      alignItems: mobile ? "stretch" : "center",
-                      justifyContent: "space-between",
+                      display: "grid",
+                      gridTemplateColumns: mobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))",
                       gap: 10,
                     }}
                   >
-                    <div>
-                      <div style={{ fontWeight: 800 }}>{u.name}</div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          color: "#64748b",
-                          marginTop: 4,
-                        }}
-                      >
-                        {u.department} · {u.role}
-                      </div>
-                    </div>
-                    {u.role !== "admin" ? (
-                      <PrimaryButton
-                        danger
-                        onClick={() => deleteUser(u.id, u.name)}
-                        full={mobile}
-                      >
-                        Sil
-                      </PrimaryButton>
-                    ) : null}
+                    <StatPill label="Toplam Kullanıcı" value={String(adminMonthlyStats.length)} />
+                    <StatPill label="Aktif Kullanıcı" value={String(adminStatsTotals.activeUsers)} />
+                    <StatPill label="Toplam Kayıt" value={String(adminStatsTotals.totalRecords)} />
+                    <StatPill
+                      label="Toplam Mesai"
+                      value={minutesToText(adminStatsTotals.totalMinutes)}
+                      strong
+                    />
                   </div>
-                ))}
-              </div>
-            </Card>
+                </div>
+
+                <div style={{ display: "grid", gap: 14 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: mobile ? "1fr" : "1.15fr 0.85fr",
+                      gap: 14,
+                    }}
+                  >
+                    <SimpleBarChart data={adminChartData} mobile={mobile} />
+                    <CorporatePieChart data={adminPieData} mobile={mobile} />
+                  </div>
+
+                  <MonthlyStatsTable data={adminMonthlyStats} mobile={mobile} />
+                </div>
+              </Card>
+
+              <Card style={{ padding: mobile ? 14 : 20 }}>
+                <SectionTitle
+                  title="Kullanıcı Yönetimi"
+                  subtitle="Mobilde tek kolon, masaüstünde daha geniş düzen."
+                />
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: mobile ? "1fr" : "repeat(4, minmax(0, 1fr))",
+                    gap: 10,
+                    marginBottom: 14,
+                  }}
+                >
+                  <Field label="Kullanıcı Adı">
+                    <TextInput
+                      placeholder="Kullanıcı adı"
+                      value={newUser.name}
+                      onChange={(e) =>
+                        setNewUser((p) => ({ ...p, name: e.target.value }))
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Şifre">
+                    <TextInput
+                      placeholder="Şifre"
+                      value={newUser.password}
+                      onChange={(e) =>
+                        setNewUser((p) => ({ ...p, password: e.target.value }))
+                      }
+                    />
+                  </Field>
+
+                  <Field label="Birim">
+                    <TextInput
+                      placeholder="Birim"
+                      value={newUser.department}
+                      onChange={(e) =>
+                        setNewUser((p) => ({ ...p, department: e.target.value }))
+                      }
+                    />
+                  </Field>
+
+                  <div style={{ display: "grid", alignItems: "end" }}>
+                    <PrimaryButton onClick={addUser}>Kullanıcı Ekle</PrimaryButton>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: 10 }}>
+                  {users.map((u) => (
+                    <div
+                      key={u.id}
+                      style={{
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 16,
+                        padding: 12,
+                        display: "flex",
+                        flexDirection: mobile ? "column" : "row",
+                        alignItems: mobile ? "stretch" : "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 800 }}>{u.name}</div>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#64748b",
+                            marginTop: 4,
+                          }}
+                        >
+                          {u.department} · {u.role}
+                        </div>
+                      </div>
+                      {u.role !== "admin" ? (
+                        <PrimaryButton
+                          danger
+                          onClick={() => deleteUser(u.id, u.name)}
+                          full={mobile}
+                        >
+                          Sil
+                        </PrimaryButton>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
 
             <div style={{ display: "grid", gap: 16 }}>
               <Card style={{ padding: mobile ? 14 : 20 }}>
