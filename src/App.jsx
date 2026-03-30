@@ -2,28 +2,36 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import bcrypt from "bcryptjs";
 
-const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v6";
+const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v7";
 const SESSION_KEY = "ytso_active_session_v1";
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
 const COLORS = {
-  blue: "#1a56db",
-  blue2: "#3b82f6",
-  blue3: "#bfdbfe",
-  teal: "#0d9488",
-  teal2: "#5eead4",
+  blue: "#1d4ed8",
+  blue2: "#2563eb",
+  blue3: "#60a5fa",
+  blue4: "#bfdbfe",
+  teal: "#0f766e",
+  teal2: "#14b8a6",
+  teal3: "#99f6e4",
   violet: "#7c3aed",
-  violet2: "#c4b5fd",
+  violet2: "#a78bfa",
+  violet3: "#ddd6fe",
   amber: "#d97706",
-  amber2: "#fcd34d",
+  amber2: "#f59e0b",
+  amber3: "#fde68a",
   rose: "#e11d48",
-  rose2: "#fda4af",
-  cyan: "#0891b2",
-  green: "#16a34a",
+  rose2: "#fb7185",
+  rose3: "#fecdd3",
+  emerald: "#059669",
+  emerald2: "#34d399",
+  emerald3: "#bbf7d0",
   slate: "#334155",
   muted: "#64748b",
+  soft: "#94a3b8",
   border: "#e2e8f0",
   bg: "#f8fafc",
+  bg2: "#f1f5f9",
   white: "#ffffff",
   dark: "#0f172a",
 };
@@ -34,9 +42,9 @@ const USER_COLORS = [
   COLORS.violet,
   COLORS.amber,
   COLORS.rose,
-  COLORS.cyan,
-  COLORS.green,
+  COLORS.emerald,
   "#9333ea",
+  "#0284c7",
 ];
 
 function getUserColor(index) {
@@ -46,6 +54,13 @@ function getUserColor(index) {
 function getCurrentMonthKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getPreviousMonthKey(monthKey) {
+  if (!monthKey) return "";
+  const [year, month] = monthKey.split("-").map(Number);
+  const d = new Date(year, month - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function formatMonth(monthKey) {
@@ -100,6 +115,14 @@ function minutesToShortText(minutes) {
   if (safeMinutes === 0) return "0 sa";
   if (m === 0) return `${h} sa`;
   return `${h}.${String(Math.round((m / 60) * 10)).padStart(1, "0")} sa`;
+}
+
+function percentageChange(current, previous) {
+  if (!previous && !current) return "0%";
+  if (!previous) return "+100%";
+  const change = ((current - previous) / previous) * 100;
+  const sign = change > 0 ? "+" : "";
+  return `${sign}${change.toFixed(1)}%`;
 }
 
 function workTypeLabel(value) {
@@ -159,12 +182,12 @@ function loadSession() {
   }
 }
 
-function EmptyChart({ text }) {
+function EmptyState({ text }) {
   return (
     <div
       style={{
         padding: 18,
-        border: `1px dashed #cbd5e1`,
+        border: `1px dashed ${COLORS.border}`,
         borderRadius: 16,
         color: COLORS.muted,
         fontSize: 13,
@@ -191,7 +214,7 @@ function AppShell({ children, mobile }) {
         color: COLORS.dark,
       }}
     >
-      <div style={{ maxWidth: 1440, margin: "0 auto" }}>{children}</div>
+      <div style={{ maxWidth: 1480, margin: "0 auto" }}>{children}</div>
     </div>
   );
 }
@@ -212,29 +235,41 @@ function Card({ children, style }) {
   );
 }
 
-function SectionTitle({ title, subtitle }) {
+function SectionTitle({ title, subtitle, action }) {
   return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>
-        {title}
-      </div>
-      {subtitle ? (
-        <div style={{ fontSize: 13, color: COLORS.muted, marginTop: 4 }}>
-          {subtitle}
+    <div
+      style={{
+        marginBottom: 18,
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 12,
+        alignItems: "flex-start",
+        flexWrap: "wrap",
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>
+          {title}
         </div>
-      ) : null}
+        {subtitle ? (
+          <div style={{ fontSize: 13, color: COLORS.muted, marginTop: 4 }}>
+            {subtitle}
+          </div>
+        ) : null}
+      </div>
+      {action || null}
     </div>
   );
 }
 
-function StatPill({ label, value, strong, color }) {
+function StatPill({ label, value, strong, color, sub }) {
   return (
     <div
       style={{
         borderRadius: 16,
-        padding: "10px 14px",
+        padding: "12px 14px",
         background: strong ? "#eff6ff" : COLORS.bg,
-        border: strong ? `1px solid ${COLORS.blue3}` : `1px solid ${COLORS.border}`,
+        border: strong ? `1px solid ${COLORS.blue4}` : `1px solid ${COLORS.border}`,
         borderLeft: color ? `3px solid ${color}` : undefined,
       }}
     >
@@ -244,10 +279,14 @@ function StatPill({ label, value, strong, color }) {
           fontSize: strong ? 18 : 16,
           fontWeight: strong ? 800 : 700,
           marginTop: 2,
+          color: color || COLORS.dark,
         }}
       >
         {value}
       </div>
+      {sub ? (
+        <div style={{ fontSize: 11, color: COLORS.soft, marginTop: 4 }}>{sub}</div>
+      ) : null}
     </div>
   );
 }
@@ -264,12 +303,12 @@ function PrimaryButton({
 }) {
   let background = COLORS.white;
   let color = COLORS.dark;
-  let border = "1px solid #cbd5e1";
+  let border = `1px solid ${COLORS.border}`;
 
   if (success) {
-    background = "#16a34a";
+    background = COLORS.emerald;
     color = "#fff";
-    border = "1px solid #16a34a";
+    border = `1px solid ${COLORS.emerald}`;
   } else if (danger) {
     background = "#fef2f2";
     color = "#b91c1c";
@@ -314,7 +353,7 @@ function TextInput(props) {
         minHeight: 46,
         padding: "12px 14px",
         borderRadius: 14,
-        border: "1px solid #cbd5e1",
+        border: `1px solid ${COLORS.border}`,
         background: COLORS.white,
         color: COLORS.dark,
         WebkitTextFillColor: COLORS.dark,
@@ -335,7 +374,7 @@ function TextArea(props) {
         minHeight: 100,
         padding: "12px 14px",
         borderRadius: 14,
-        border: "1px solid #cbd5e1",
+        border: `1px solid ${COLORS.border}`,
         background: COLORS.white,
         color: COLORS.dark,
         WebkitTextFillColor: COLORS.dark,
@@ -357,7 +396,7 @@ function SelectInput(props) {
         minHeight: 46,
         padding: "12px 14px",
         borderRadius: 14,
-        border: "1px solid #cbd5e1",
+        border: `1px solid ${COLORS.border}`,
         background: COLORS.white,
         color: COLORS.dark,
         WebkitTextFillColor: COLORS.dark,
@@ -387,37 +426,92 @@ function Field({ label, children }) {
   );
 }
 
-function MiniStat({ label, value, color }) {
+function EntryCard({ item, mobile, canEdit, canDelete, onEdit, onDelete }) {
+  const typeColor =
+    item.work_type === "hafta_ici"
+      ? COLORS.blue
+      : item.work_type === "hafta_sonu"
+      ? COLORS.teal
+      : COLORS.violet;
+
   return (
     <div
       style={{
-        background: COLORS.bg,
-        borderRadius: 10,
-        padding: "6px 10px",
         border: `1px solid ${COLORS.border}`,
+        borderRadius: 18,
+        padding: mobile ? 12 : 14,
+        background: COLORS.white,
+        borderLeft: `3px solid ${typeColor}`,
       }}
     >
-      <div style={{ fontSize: 10, color: COLORS.muted }}>{label}</div>
       <div
         style={{
-          fontSize: 13,
-          fontWeight: 800,
-          color: color || COLORS.dark,
-          marginTop: 1,
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
         }}
       >
-        {value}
+        <div style={{ fontWeight: 800 }}>{item.date}</div>
+        <div style={{ color: COLORS.blue, fontWeight: 700 }}>{item.duration}</div>
       </div>
+
+      <div style={{ marginTop: 6, fontSize: 13, color: COLORS.muted }}>
+        {item.start} - {item.end}
+      </div>
+
+      <div style={{ marginTop: 6, fontSize: 13 }}>
+        <span
+          style={{
+            fontWeight: 700,
+            fontSize: 11,
+            padding: "2px 8px",
+            borderRadius: 999,
+            background:
+              item.work_type === "hafta_ici"
+                ? "#eff6ff"
+                : item.work_type === "hafta_sonu"
+                ? "#f0fdfa"
+                : "#f5f3ff",
+            color: typeColor,
+            border: `1px solid ${
+              item.work_type === "hafta_ici"
+                ? COLORS.blue4
+                : item.work_type === "hafta_sonu"
+                ? COLORS.teal3
+                : COLORS.violet3
+            }`,
+          }}
+        >
+          {workTypeLabel(item.work_type)}
+        </span>
+        {" · "}
+        <span style={{ color: COLORS.slate }}>{item.user_name}</span>
+      </div>
+
+      <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.45, color: COLORS.slate }}>
+        {item.description}
+      </div>
+
+      {(canEdit || canDelete) && (
+        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+          {canEdit && <PrimaryButton onClick={() => onEdit(item)}>Düzenle</PrimaryButton>}
+          {canDelete && (
+            <PrimaryButton danger onClick={() => onDelete(item)}>
+              Sil
+            </PrimaryButton>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function EnhancedBarChart({ data, mobile }) {
-  const [hovered, setHovered] = useState(null);
   const maxValue = Math.max(...data.map((x) => x.minutes), 1);
 
   if (!data.length || !data.some((d) => d.minutes > 0)) {
-    return <EmptyChart text="Seçilen ay için grafik verisi bulunamadı." />;
+    return <EmptyState text="Seçilen ay için grafik verisi bulunamadı." />;
   }
 
   return (
@@ -433,27 +527,22 @@ function EnhancedBarChart({ data, mobile }) {
         Kullanıcı Bazlı Mesai
       </div>
       <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 18 }}>
-        Aylık toplam sıralanmış görünüm
+        Seçilen dönemde en yüksekten düşüğe sıralama
       </div>
 
       <div style={{ display: "grid", gap: 12 }}>
         {data.map((item, index) => {
           const pct = maxValue > 0 ? (item.minutes / maxValue) * 100 : 0;
           const color = getUserColor(index);
-          const isHov = hovered === index;
 
           return (
             <div
               key={`${item.userId}-${index}`}
-              onMouseEnter={() => setHovered(index)}
-              onMouseLeave={() => setHovered(null)}
               style={{
                 padding: "10px 12px",
                 borderRadius: 14,
-                background: isHov ? "#f0f7ff" : "transparent",
-                border: `1px solid ${isHov ? COLORS.blue3 : "transparent"}`,
-                transition: "all .15s ease",
-                cursor: "default",
+                background: "transparent",
+                border: `1px solid transparent`,
               }}
             >
               <div
@@ -524,33 +613,6 @@ function EnhancedBarChart({ data, mobile }) {
                   }}
                 />
               </div>
-
-              {isHov ? (
-                <div
-                  style={{
-                    marginTop: 10,
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: 6,
-                  }}
-                >
-                  <MiniStat
-                    label="Hafta İçi"
-                    value={minutesToShortText(item.hafta_ici)}
-                    color={COLORS.blue}
-                  />
-                  <MiniStat
-                    label="Hafta Sonu"
-                    value={minutesToShortText(item.hafta_sonu)}
-                    color={COLORS.teal}
-                  />
-                  <MiniStat
-                    label="Res. Tatil"
-                    value={minutesToShortText(item.resmi_tatil)}
-                    color={COLORS.violet}
-                  />
-                </div>
-              ) : null}
             </div>
           );
         })}
@@ -560,12 +622,11 @@ function EnhancedBarChart({ data, mobile }) {
 }
 
 function EnhancedDonutChart({ data, mobile }) {
-  const [hoveredIndex, setHoveredIndex] = useState(null);
   const filtered = data.filter((x) => x.minutes > 0).slice(0, 8);
   const total = filtered.reduce((sum, item) => sum + item.minutes, 0);
 
   if (!filtered.length || total <= 0) {
-    return <EmptyChart text="Seçilen ay için pasta grafik verisi bulunamadı." />;
+    return <EmptyState text="Seçilen ay için pasta grafik verisi bulunamadı." />;
   }
 
   const cx = 100;
@@ -583,8 +644,6 @@ function EnhancedDonutChart({ data, mobile }) {
     return { ...item, fraction, segment, offset, color: getUserColor(index) };
   });
 
-  const hov = hoveredIndex !== null ? segments[hoveredIndex] : null;
-
   return (
     <div
       style={{
@@ -595,10 +654,10 @@ function EnhancedDonutChart({ data, mobile }) {
       }}
     >
       <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>
-        Mesai Dağılımı
+        Kullanıcı Payları
       </div>
       <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 16 }}>
-        Kullanıcı payları
+        Toplam mesainin dağılımı
       </div>
 
       <div
@@ -619,7 +678,8 @@ function EnhancedDonutChart({ data, mobile }) {
               stroke="#f1f5f9"
               strokeWidth={strokeWidth}
             />
-            {segments.map((seg, i) => (
+
+            {segments.map((seg) => (
               <circle
                 key={seg.userId}
                 cx={cx}
@@ -627,16 +687,13 @@ function EnhancedDonutChart({ data, mobile }) {
                 r={r}
                 fill="none"
                 stroke={seg.color}
-                strokeWidth={hoveredIndex === i ? strokeWidth + 4 : strokeWidth}
+                strokeWidth={strokeWidth}
                 strokeDasharray={`${seg.segment} ${circumference - seg.segment}`}
                 strokeDashoffset={seg.offset}
-                strokeLinecap="butt"
                 transform={`rotate(-90 ${cx} ${cy})`}
-                style={{ cursor: "pointer", transition: "stroke-width .15s ease" }}
-                onMouseEnter={() => setHoveredIndex(i)}
-                onMouseLeave={() => setHoveredIndex(null)}
               />
             ))}
+
             <circle
               cx={cx}
               cy={cy}
@@ -644,80 +701,40 @@ function EnhancedDonutChart({ data, mobile }) {
               fill={COLORS.white}
             />
 
-            {hov ? (
-              <>
-                <text
-                  x={cx}
-                  y={cy - 10}
-                  textAnchor="middle"
-                  fontSize="13"
-                  fontWeight="800"
-                  fill={hov.color}
-                >
-                  {hov.name.split(" ")[0]}
-                </text>
-                <text
-                  x={cx}
-                  y={cy + 8}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fill={COLORS.slate}
-                >
-                  {minutesToShortText(hov.minutes)}
-                </text>
-                <text
-                  x={cx}
-                  y={cy + 24}
-                  textAnchor="middle"
-                  fontSize="13"
-                  fontWeight="800"
-                  fill={hov.color}
-                >
-                  %{(hov.fraction * 100).toFixed(1)}
-                </text>
-              </>
-            ) : (
-              <>
-                <text
-                  x={cx}
-                  y={cy - 4}
-                  textAnchor="middle"
-                  fontSize="12"
-                  fontWeight="700"
-                  fill={COLORS.slate}
-                >
-                  Toplam
-                </text>
-                <text
-                  x={cx}
-                  y={cy + 14}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fill={COLORS.muted}
-                >
-                  {minutesToShortText(total)}
-                </text>
-              </>
-            )}
+            <text
+              x={cx}
+              y={cy - 4}
+              textAnchor="middle"
+              fontSize="12"
+              fontWeight="700"
+              fill={COLORS.slate}
+            >
+              Toplam
+            </text>
+            <text
+              x={cx}
+              y={cy + 14}
+              textAnchor="middle"
+              fontSize="11"
+              fill={COLORS.muted}
+            >
+              {minutesToShortText(total)}
+            </text>
           </svg>
         </div>
 
         <div style={{ display: "grid", gap: 8 }}>
-          {segments.map((seg, i) => (
+          {segments.map((seg) => (
             <div
               key={seg.userId}
-              onMouseEnter={() => setHoveredIndex(i)}
-              onMouseLeave={() => setHoveredIndex(null)}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
                 padding: "8px 10px",
                 borderRadius: 12,
-                background: hoveredIndex === i ? "#f0f7ff" : "transparent",
-                border: `1px solid ${
-                  hoveredIndex === i ? COLORS.blue3 : COLORS.border
-                }`,
+                background: "transparent",
+                border: `1px solid ${COLORS.border}`,
               }}
             >
               <div
@@ -763,15 +780,24 @@ function EnhancedDonutChart({ data, mobile }) {
   );
 }
 
-function EnhancedStatsTable({ data, mobile, onDrilldown }) {
+function EnhancedStatsTable({ data, mobile, onDrilldown, searchTerm }) {
   const [sortKey, setSortKey] = useState("minutes");
   const [sortDir, setSortDir] = useState("desc");
 
-  if (!data.length) {
-    return <EmptyChart text="Seçilen ay için kullanıcı verisi bulunamadı." />;
+  const filtered = data.filter((item) => {
+    const q = (searchTerm || "").trim().toLowerCase();
+    if (!q) return true;
+    return (
+      item.name?.toLowerCase().includes(q) ||
+      item.department?.toLowerCase().includes(q)
+    );
+  });
+
+  if (!filtered.length) {
+    return <EmptyState text="Filtreye uygun kullanıcı verisi bulunamadı." />;
   }
 
-  const sorted = [...data].sort((a, b) => {
+  const sorted = [...filtered].sort((a, b) => {
     const aVal = sortKey === "name" ? a.name.localeCompare(b.name) : a[sortKey] - b[sortKey];
     return sortDir === "desc" ? -aVal : aVal;
   });
@@ -805,6 +831,7 @@ function EnhancedStatsTable({ data, mobile, onDrilldown }) {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-start",
+                gap: 10,
               }}
             >
               <div>
@@ -831,21 +858,9 @@ function EnhancedStatsTable({ data, mobile, onDrilldown }) {
                 gap: 8,
               }}
             >
-              <MiniStat
-                label="Hafta İçi"
-                value={minutesToShortText(item.hafta_ici)}
-                color={COLORS.blue}
-              />
-              <MiniStat
-                label="Hafta Sonu"
-                value={minutesToShortText(item.hafta_sonu)}
-                color={COLORS.teal}
-              />
-              <MiniStat
-                label="Res. Tatil"
-                value={minutesToShortText(item.resmi_tatil)}
-                color={COLORS.violet}
-              />
+              <StatPill label="Hafta İçi" value={minutesToShortText(item.hafta_ici)} color={COLORS.blue} />
+              <StatPill label="H. Sonu" value={minutesToShortText(item.hafta_sonu)} color={COLORS.teal} />
+              <StatPill label="Tatil" value={minutesToShortText(item.resmi_tatil)} color={COLORS.violet} />
             </div>
 
             {onDrilldown ? (
@@ -856,7 +871,7 @@ function EnhancedStatsTable({ data, mobile, onDrilldown }) {
                   width: "100%",
                   padding: "8px 0",
                   borderRadius: 10,
-                  border: `1px solid ${COLORS.blue3}`,
+                  border: `1px solid ${COLORS.blue4}`,
                   background: "#eff6ff",
                   color: COLORS.blue,
                   fontWeight: 700,
@@ -884,14 +899,18 @@ function EnhancedStatsTable({ data, mobile, onDrilldown }) {
     userSelect: "none",
     background: COLORS.bg,
     whiteSpace: "nowrap",
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
   });
 
   return (
     <div
       style={{
         borderRadius: 16,
-        overflow: "hidden",
+        overflow: "auto",
         border: `1px solid ${COLORS.border}`,
+        maxHeight: 520,
       }}
     >
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -997,7 +1016,7 @@ function EnhancedStatsTable({ data, mobile, onDrilldown }) {
                       style={{
                         padding: "6px 12px",
                         borderRadius: 8,
-                        border: `1px solid ${COLORS.blue3}`,
+                        border: `1px solid ${COLORS.blue4}`,
                         background: "#eff6ff",
                         color: COLORS.blue,
                         fontWeight: 700,
@@ -1019,11 +1038,10 @@ function EnhancedStatsTable({ data, mobile, onDrilldown }) {
 }
 
 function MonthlyPersonalChart({ data, mobile }) {
-  const [hoveredIdx, setHoveredIdx] = useState(null);
   const maxValue = Math.max(...data.map((x) => x.minutes), 0);
 
   if (!data.length || !data.some((x) => x.minutes > 0)) {
-    return <EmptyChart text="Seçilen ay için kişisel grafik verisi bulunamadı." />;
+    return <EmptyState text="Seçilen ay için kişisel grafik verisi bulunamadı." />;
   }
 
   return (
@@ -1039,7 +1057,7 @@ function MonthlyPersonalChart({ data, mobile }) {
         Gün Bazlı Mesai
       </div>
       <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 16 }}>
-        Seçilen ay içindeki günlük mesai
+        Seçilen ay içindeki günlük mesai görünümü
       </div>
 
       <div
@@ -1054,13 +1072,10 @@ function MonthlyPersonalChart({ data, mobile }) {
         {data.map((item, i) => {
           const height = maxValue > 0 ? Math.max(6, (item.minutes / maxValue) * 120) : 6;
           const active = item.minutes > 0;
-          const isHov = hoveredIdx === i;
 
           return (
             <div
               key={`${item.day}-${i}`}
-              onMouseEnter={() => setHoveredIdx(i)}
-              onMouseLeave={() => setHoveredIdx(null)}
               title={active ? `${item.label}: ${item.durationText}` : undefined}
               style={{
                 display: "flex",
@@ -1070,19 +1085,6 @@ function MonthlyPersonalChart({ data, mobile }) {
                 gap: 3,
               }}
             >
-              {isHov && active ? (
-                <div
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 700,
-                    color: COLORS.teal,
-                    textAlign: "center",
-                  }}
-                >
-                  {minutesToShortText(item.minutes)}
-                </div>
-              ) : null}
-
               <div
                 style={{
                   width: "100%",
@@ -1090,12 +1092,8 @@ function MonthlyPersonalChart({ data, mobile }) {
                   height: active ? height : 4,
                   borderRadius: 4,
                   background: active
-                    ? isHov
-                      ? `linear-gradient(180deg, ${COLORS.teal2}, ${COLORS.teal})`
-                      : `linear-gradient(180deg, #5eead4, ${COLORS.teal})`
+                    ? `linear-gradient(180deg, #5eead4, ${COLORS.teal})`
                     : "#e2e8f0",
-                  boxShadow: isHov && active ? "0 4px 10px rgba(13,148,136,0.3)" : "none",
-                  transition: "all .15s ease",
                 }}
               />
               <div
@@ -1124,7 +1122,7 @@ function TypeBreakdownChart({ haftaIci, haftaSonu, resmiTatil, mobile }) {
   const total = segments.reduce((s, x) => s + x.minutes, 0);
 
   if (total <= 0) {
-    return <EmptyChart text="Dağılım grafiği için veri bulunamadı." />;
+    return <EmptyState text="Dağılım grafiği için veri bulunamadı." />;
   }
 
   return (
@@ -1192,7 +1190,6 @@ function TypeBreakdownChart({ haftaIci, haftaSonu, resmiTatil, mobile }) {
                     height: "100%",
                     borderRadius: 999,
                     background: item.color,
-                    transition: "width .4s cubic-bezier(.4,0,.2,1)",
                   }}
                 />
               </div>
@@ -1207,7 +1204,7 @@ function TypeBreakdownChart({ haftaIci, haftaSonu, resmiTatil, mobile }) {
           padding: "10px 14px",
           borderRadius: 12,
           background: "#eff6ff",
-          border: `1px solid ${COLORS.blue3}`,
+          border: `1px solid ${COLORS.blue4}`,
         }}
       >
         <span style={{ fontSize: 12, color: COLORS.muted }}>Toplam: </span>
@@ -1219,13 +1216,212 @@ function TypeBreakdownChart({ haftaIci, haftaSonu, resmiTatil, mobile }) {
   );
 }
 
-function YearlyTrendChart({ data, selectedYear, mobile, currentUserName }) {
-  const [hoveredIdx, setHoveredIdx] = useState(null);
+function MiniSixMonthTrend({ data, title, subtitle }) {
   const maxValue = Math.max(...data.map((x) => x.minutes), 0);
 
-  if (!selectedYear) return <EmptyChart text="Yıllık grafik için önce yıl seçin." />;
   if (!data.some((x) => x.minutes > 0)) {
-    return <EmptyChart text={`${selectedYear} yılı için grafik verisi bulunamadı.`} />;
+    return <EmptyState text="Trend verisi bulunamadı." />;
+  }
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 18,
+        padding: 16,
+        background: COLORS.white,
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 14 }}>{subtitle}</div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))`,
+          gap: 8,
+          alignItems: "end",
+          minHeight: 170,
+        }}
+      >
+        {data.map((item, index) => {
+          const height = maxValue > 0 ? Math.max(18, (item.minutes / maxValue) * 110) : 18;
+          return (
+            <div
+              key={`${item.monthKey}-${index}`}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: 6,
+              }}
+            >
+              <div style={{ fontSize: 10, color: COLORS.slate, fontWeight: 700 }}>
+                {item.minutes > 0 ? minutesToShortText(item.minutes) : ""}
+              </div>
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: 30,
+                  height,
+                  borderRadius: "10px 10px 4px 4px",
+                  background:
+                    item.minutes > 0
+                      ? `linear-gradient(180deg, ${COLORS.blue3}, ${COLORS.blue})`
+                      : "#e2e8f0",
+                }}
+              />
+              <div style={{ fontSize: 10, color: COLORS.muted, fontWeight: 700 }}>
+                {item.shortLabel}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DepartmentBarChart({ data, mobile }) {
+  const maxValue = Math.max(...data.map((x) => x.minutes), 1);
+
+  if (!data.length || !data.some((x) => x.minutes > 0)) {
+    return <EmptyState text="Birim bazlı veri bulunamadı." />;
+  }
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 18,
+        padding: mobile ? 12 : 16,
+        background: COLORS.white,
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>
+        Birim Bazlı Mesai
+      </div>
+      <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 16 }}>
+        Birimlere göre toplam mesai görünümü
+      </div>
+
+      <div style={{ display: "grid", gap: 12 }}>
+        {data.map((item, index) => {
+          const pct = (item.minutes / maxValue) * 100;
+          const color = getUserColor(index);
+          return (
+            <div key={item.department}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{item.department}</div>
+                <div style={{ fontSize: 12, color: COLORS.muted }}>
+                  {minutesToShortText(item.minutes)} · {item.recordCount} kayıt
+                </div>
+              </div>
+
+              <div
+                style={{
+                  height: 10,
+                  borderRadius: 999,
+                  background: "#e2e8f0",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${pct}%`,
+                    height: "100%",
+                    borderRadius: 999,
+                    background: color,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WeekdayHeatmap({ weekdayData }) {
+  const maxValue = Math.max(...weekdayData.map((x) => x.minutes), 0);
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 18,
+        padding: 16,
+        background: COLORS.white,
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>
+        Gün Yoğunluk Haritası
+      </div>
+      <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 14 }}>
+        Haftanın günlerine göre yoğunluk
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(7, 1fr)",
+          gap: 10,
+        }}
+      >
+        {weekdayData.map((item) => {
+          const intensity = maxValue > 0 ? item.minutes / maxValue : 0;
+          const bg =
+            intensity === 0
+              ? "#f8fafc"
+              : intensity < 0.25
+              ? "#dbeafe"
+              : intensity < 0.5
+              ? "#93c5fd"
+              : intensity < 0.75
+              ? "#60a5fa"
+              : "#1d4ed8";
+
+          const color = intensity >= 0.5 ? "#fff" : COLORS.dark;
+
+          return (
+            <div
+              key={item.label}
+              style={{
+                borderRadius: 16,
+                padding: "16px 10px",
+                background: bg,
+                border: `1px solid ${COLORS.border}`,
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 800, color }}>{item.label}</div>
+              <div style={{ marginTop: 8, fontSize: 13, fontWeight: 800, color }}>
+                {minutesToShortText(item.minutes)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function YearlyTrendChart({ data, selectedYear, mobile, currentUserName }) {
+  const maxValue = Math.max(...data.map((x) => x.minutes), 0);
+
+  if (!selectedYear) return <EmptyState text="Yıllık grafik için önce yıl seçin." />;
+  if (!data.some((x) => x.minutes > 0)) {
+    return <EmptyState text={`${selectedYear} yılı için grafik verisi bulunamadı.`} />;
   }
 
   return (
@@ -1255,13 +1451,11 @@ function YearlyTrendChart({ data, selectedYear, mobile, currentUserName }) {
         {data.map((item, index) => {
           const height = maxValue > 0 ? Math.max(16, (item.minutes / maxValue) * 160) : 16;
           const isActive = item.minutes > 0;
-          const isHov = hoveredIdx === index;
 
           return (
             <div
               key={`${item.monthKey}-${index}`}
-              onMouseEnter={() => setHoveredIdx(index)}
-              onMouseLeave={() => setHoveredIdx(null)}
+              title={`${item.label}: ${item.durationText}`}
               style={{
                 display: "flex",
                 flexDirection: "column",
@@ -1278,31 +1472,21 @@ function YearlyTrendChart({ data, selectedYear, mobile, currentUserName }) {
                   fontWeight: isActive ? 700 : 500,
                   textAlign: "center",
                   minHeight: 24,
-                  background: isHov && isActive ? "#eff6ff" : "transparent",
-                  padding: "2px 4px",
-                  borderRadius: 6,
                 }}
               >
                 {item.minutes > 0 ? `${(item.minutes / 60).toFixed(1)} sa` : ""}
               </div>
 
               <div
-                title={`${item.label}: ${item.durationText}`}
                 style={{
                   width: "100%",
                   maxWidth: 32,
                   height,
-                  borderRadius: isHov ? "10px 10px 6px 6px" : "8px 8px 4px 4px",
+                  borderRadius: "8px 8px 4px 4px",
                   background: isActive
-                    ? isHov
-                      ? `linear-gradient(180deg, ${COLORS.blue2} 0%, ${COLORS.blue} 100%)`
-                      : `linear-gradient(180deg, #60a5fa 0%, ${COLORS.blue} 100%)`
+                    ? `linear-gradient(180deg, ${COLORS.blue3} 0%, ${COLORS.blue} 100%)`
                     : "#e2e8f0",
-                  boxShadow: isHov && isActive
-                    ? "0 8px 20px rgba(37,99,235,0.3)"
-                    : isActive
-                    ? "0 4px 12px rgba(37,99,235,0.12)"
-                    : "none",
+                  boxShadow: isActive ? "0 4px 12px rgba(37,99,235,0.12)" : "none",
                 }}
               />
               <div
@@ -1384,7 +1568,7 @@ function UserDrilldownPanel({ user: targetUser, entries, allMonths, mobile, onCl
       const dayKey = `${drillMonth}-${day}`;
       const dayEntries = userEntries.filter((e) => e.date === dayKey);
       const mins = dayEntries.reduce((s, e) => s + parseDurationToMinutes(e.duration), 0);
-      return { day: String(i + 1), mins, entries: dayEntries };
+      return { day: String(i + 1), mins };
     });
   }, [drillMonth, userEntries]);
 
@@ -1523,7 +1707,7 @@ function UserDrilldownPanel({ user: targetUser, entries, allMonths, mobile, onCl
                           borderRadius: 4,
                           background:
                             d.mins > 0
-                              ? `linear-gradient(180deg, ${COLORS.blue2}, ${COLORS.blue})`
+                              ? `linear-gradient(180deg, ${COLORS.blue3}, ${COLORS.blue})`
                               : "#e2e8f0",
                         }}
                       />
@@ -1543,7 +1727,7 @@ function UserDrilldownPanel({ user: targetUser, entries, allMonths, mobile, onCl
             </div>
 
             {userEntries.length === 0 ? (
-              <EmptyChart text="Bu dönem için kayıt bulunamadı." />
+              <EmptyState text="Bu dönem için kayıt bulunamadı." />
             ) : (
               <div style={{ display: "grid", gap: 8 }}>
                 {userEntries.map((e, i) => (
@@ -1586,10 +1770,10 @@ function UserDrilldownPanel({ user: targetUser, entries, allMonths, mobile, onCl
                               : COLORS.violet,
                           border: `1px solid ${
                             e.work_type === "hafta_ici"
-                              ? COLORS.blue3
+                              ? COLORS.blue4
                               : e.work_type === "hafta_sonu"
-                              ? COLORS.teal2
-                              : COLORS.violet2
+                              ? COLORS.teal3
+                              : COLORS.violet3
                           }`,
                         }}
                       >
@@ -1602,7 +1786,7 @@ function UserDrilldownPanel({ user: targetUser, entries, allMonths, mobile, onCl
                         style={{
                           fontSize: 12,
                           color: COLORS.muted,
-                          maxWidth: 200,
+                          maxWidth: 220,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
@@ -1621,87 +1805,6 @@ function UserDrilldownPanel({ user: targetUser, entries, allMonths, mobile, onCl
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function EntryCard({ item, mobile, canEdit, canDelete, onEdit, onDelete }) {
-  const typeColor =
-    item.work_type === "hafta_ici"
-      ? COLORS.blue
-      : item.work_type === "hafta_sonu"
-      ? COLORS.teal
-      : COLORS.violet;
-
-  return (
-    <div
-      style={{
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: 18,
-        padding: mobile ? 12 : 14,
-        background: COLORS.white,
-        borderLeft: `3px solid ${typeColor}`,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ fontWeight: 800 }}>{item.date}</div>
-        <div style={{ color: COLORS.blue, fontWeight: 700 }}>{item.duration}</div>
-      </div>
-
-      <div style={{ marginTop: 6, fontSize: 13, color: COLORS.muted }}>
-        {item.start} - {item.end}
-      </div>
-
-      <div style={{ marginTop: 6, fontSize: 13 }}>
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: 11,
-            padding: "2px 8px",
-            borderRadius: 999,
-            background:
-              item.work_type === "hafta_ici"
-                ? "#eff6ff"
-                : item.work_type === "hafta_sonu"
-                ? "#f0fdfa"
-                : "#f5f3ff",
-            color: typeColor,
-            border: `1px solid ${
-              item.work_type === "hafta_ici"
-                ? COLORS.blue3
-                : item.work_type === "hafta_sonu"
-                ? COLORS.teal2
-                : COLORS.violet2
-            }`,
-          }}
-        >
-          {workTypeLabel(item.work_type)}
-        </span>
-        {" · "}
-        <span style={{ color: COLORS.slate }}>{item.user_name}</span>
-      </div>
-
-      <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.45, color: COLORS.slate }}>
-        {item.description}
-      </div>
-
-      {canEdit || canDelete ? (
-        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-          {canEdit ? <PrimaryButton onClick={() => onEdit(item)}>Düzenle</PrimaryButton> : null}
-          {canDelete ? (
-            <PrimaryButton danger onClick={() => onDelete(item)}>
-              Sil
-            </PrimaryButton>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -1725,7 +1828,11 @@ export default function App() {
   );
 
   const [login, setLogin] = useState({ name: "", password: "" });
-  const [newUser, setNewUser] = useState({ name: "", password: "", department: "" });
+  const [newUser, setNewUser] = useState({
+    name: "",
+    password: "",
+    department: "",
+  });
   const [passwordForm, setPasswordForm] = useState({
     oldPassword: "",
     newPassword: "",
@@ -1749,6 +1856,13 @@ export default function App() {
   const [editingEntryId, setEditingEntryId] = useState(null);
   const [drilldownUser, setDrilldownUser] = useState(null);
 
+  const [adminFilterYear, setAdminFilterYear] = useState("");
+  const [adminFilterMonth, setAdminFilterMonth] = useState("");
+  const [adminFilterUser, setAdminFilterUser] = useState("all");
+  const [adminFilterDepartment, setAdminFilterDepartment] = useState("all");
+  const [adminFilterWorkType, setAdminFilterWorkType] = useState("all");
+  const [adminSearchTerm, setAdminSearchTerm] = useState("");
+
   const mobile = viewportWidth < 768;
   const tablet = viewportWidth >= 768 && viewportWidth < 1180;
 
@@ -1764,6 +1878,7 @@ export default function App() {
       supabase.from("logs").select("*").order("created_at", { ascending: false }),
       supabase.from("settings").select("*").limit(1).maybeSingle(),
     ]);
+
     setUsers(usersData || []);
     setEntries(entriesData || []);
     setLogs(logsData || []);
@@ -2155,13 +2270,21 @@ export default function App() {
 
   const months = [...new Set(entries.map((x) => x.date?.slice(0, 7)).filter(Boolean))].sort().reverse();
   const years = [...new Set(entries.map((x) => x.date?.slice(0, 4)).filter(Boolean))].sort().reverse();
+  const departments = [...new Set(users.map((u) => u.department).filter(Boolean))].sort();
 
   useEffect(() => {
     const currentMonth = getCurrentMonthKey();
     if (!adminStatsMonth) {
       setAdminStatsMonth(months.includes(currentMonth) ? currentMonth : months[0] || "");
     }
-  }, [months, adminStatsMonth]);
+    if (!adminFilterMonth) {
+      setAdminFilterMonth(months.includes(currentMonth) ? currentMonth : months[0] || "");
+    }
+    if (!adminFilterYear) {
+      const y = (months.includes(currentMonth) ? currentMonth : months[0] || "").slice(0, 4);
+      setAdminFilterYear(y);
+    }
+  }, [months, adminStatsMonth, adminFilterMonth, adminFilterYear]);
 
   useEffect(() => {
     const currentMonth = getCurrentMonthKey();
@@ -2208,6 +2331,15 @@ export default function App() {
     );
   }, [ownMonthlyEntries]);
 
+  const personalBestDay = useMemo(() => {
+    const map = {};
+    ownMonthlyEntries.forEach((item) => {
+      map[item.date] = (map[item.date] || 0) + parseDurationToMinutes(item.duration);
+    });
+    const best = Object.entries(map).sort((a, b) => b[1] - a[1])[0];
+    return best ? { date: best[0], minutes: best[1] } : null;
+  }, [ownMonthlyEntries]);
+
   const personalDailyChartData = useMemo(() => {
     if (!personalStatsMonth) return [];
     const [year, month] = personalStatsMonth.split("-").map(Number);
@@ -2232,14 +2364,67 @@ export default function App() {
     });
   }, [personalStatsMonth, ownMonthlyEntries]);
 
+  const personalSixMonthTrend = useMemo(() => {
+    const baseMonth = personalStatsMonth || getCurrentMonthKey();
+    const [y, m] = baseMonth.split("-").map(Number);
+    const list = [];
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(y, m - 1 - i, 1);
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthEntries = entries.filter((e) => e.user_id === user?.id && e.date?.startsWith(monthKey));
+      const minutes = monthEntries.reduce((s, x) => s + parseDurationToMinutes(x.duration), 0);
+      const monthName = new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(d);
+      list.push({
+        monthKey,
+        shortLabel: monthName.slice(0, 3),
+        minutes,
+      });
+    }
+    return list;
+  }, [entries, user, personalStatsMonth]);
+
+  const adminBaseEntries = useMemo(() => {
+    let data = [...entries];
+
+    if (adminFilterYear) {
+      data = data.filter((x) => x.date?.startsWith(adminFilterYear));
+    }
+    if (adminFilterMonth) {
+      data = data.filter((x) => x.date?.startsWith(adminFilterMonth));
+    }
+    if (adminFilterUser !== "all") {
+      data = data.filter((x) => x.user_id === adminFilterUser);
+    }
+    if (adminFilterDepartment !== "all") {
+      const deptUsers = users.filter((u) => u.department === adminFilterDepartment).map((u) => u.id);
+      data = data.filter((x) => deptUsers.includes(x.user_id));
+    }
+    if (adminFilterWorkType !== "all") {
+      data = data.filter((x) => x.work_type === adminFilterWorkType);
+    }
+    return data;
+  }, [
+    entries,
+    users,
+    adminFilterYear,
+    adminFilterMonth,
+    adminFilterUser,
+    adminFilterDepartment,
+    adminFilterWorkType,
+  ]);
+
   const adminMonthlyStats = useMemo(() => {
-    if (user?.role !== "admin" || !adminStatsMonth) return [];
+    if (user?.role !== "admin") return [];
 
-    const monthEntries = entries.filter((x) => x.date?.startsWith(adminStatsMonth));
-    const nonAdminUsers = users.filter((u) => u.role !== "admin");
+    const baseUsers =
+      adminFilterUser !== "all"
+        ? users.filter((u) => u.id === adminFilterUser)
+        : adminFilterDepartment !== "all"
+        ? users.filter((u) => u.department === adminFilterDepartment && u.role !== "admin")
+        : users.filter((u) => u.role !== "admin");
 
-    const result = nonAdminUsers.map((u) => {
-      const userEntries = monthEntries.filter((x) => x.user_id === u.id);
+    const result = baseUsers.map((u) => {
+      const userEntries = adminBaseEntries.filter((x) => x.user_id === u.id);
       const totals = userEntries.reduce(
         (acc, item) => {
           const mins = parseDurationToMinutes(item.duration);
@@ -2267,7 +2452,7 @@ export default function App() {
     });
 
     return result.sort((a, b) => b.minutes - a.minutes);
-  }, [entries, users, user, adminStatsMonth]);
+  }, [user, users, adminBaseEntries, adminFilterUser, adminFilterDepartment]);
 
   const adminStatsTotals = useMemo(() => {
     return adminMonthlyStats.reduce(
@@ -2281,8 +2466,137 @@ export default function App() {
     );
   }, [adminMonthlyStats]);
 
+  const previousMonthStatsTotals = useMemo(() => {
+    const prevMonth = getPreviousMonthKey(adminFilterMonth || adminStatsMonth || getCurrentMonthKey());
+    if (!prevMonth) return { totalMinutes: 0, totalRecords: 0, activeUsers: 0 };
+
+    let data = entries.filter((x) => x.date?.startsWith(prevMonth));
+
+    if (adminFilterUser !== "all") {
+      data = data.filter((x) => x.user_id === adminFilterUser);
+    }
+    if (adminFilterDepartment !== "all") {
+      const deptUsers = users.filter((u) => u.department === adminFilterDepartment).map((u) => u.id);
+      data = data.filter((x) => deptUsers.includes(x.user_id));
+    }
+    if (adminFilterWorkType !== "all") {
+      data = data.filter((x) => x.work_type === adminFilterWorkType);
+    }
+
+    const totals = data.reduce(
+      (acc, item) => {
+        acc.totalMinutes += parseDurationToMinutes(item.duration);
+        acc.totalRecords += 1;
+        acc.userSet.add(item.user_id);
+        return acc;
+      },
+      { totalMinutes: 0, totalRecords: 0, userSet: new Set() }
+    );
+
+    return {
+      totalMinutes: totals.totalMinutes,
+      totalRecords: totals.totalRecords,
+      activeUsers: totals.userSet.size,
+    };
+  }, [entries, users, adminFilterMonth, adminStatsMonth, adminFilterUser, adminFilterDepartment, adminFilterWorkType]);
+
+  const adminKpi = useMemo(() => {
+    const avgRecordMinutes = adminStatsTotals.totalRecords
+      ? Math.round(adminStatsTotals.totalMinutes / adminStatsTotals.totalRecords)
+      : 0;
+
+    const dayMap = {};
+    adminBaseEntries.forEach((e) => {
+      dayMap[e.date] = (dayMap[e.date] || 0) + parseDurationToMinutes(e.duration);
+    });
+    const bestDay = Object.entries(dayMap).sort((a, b) => b[1] - a[1])[0];
+
+    return {
+      totalMinutes: adminStatsTotals.totalMinutes,
+      totalRecords: adminStatsTotals.totalRecords,
+      activeUsers: adminStatsTotals.activeUsers,
+      avgRecordMinutes,
+      bestDay,
+      monthChange: percentageChange(
+        adminStatsTotals.totalMinutes,
+        previousMonthStatsTotals.totalMinutes
+      ),
+    };
+  }, [adminStatsTotals, adminBaseEntries, previousMonthStatsTotals]);
+
   const adminChartData = useMemo(() => adminMonthlyStats.slice(0, 8), [adminMonthlyStats]);
   const adminPieData = useMemo(() => adminMonthlyStats, [adminMonthlyStats]);
+
+  const adminDeptData = useMemo(() => {
+    const map = {};
+    adminBaseEntries.forEach((e) => {
+      const u = users.find((x) => x.id === e.user_id);
+      const dept = u?.department || "Birim Yok";
+      if (!map[dept]) map[dept] = { department: dept, minutes: 0, recordCount: 0 };
+      map[dept].minutes += parseDurationToMinutes(e.duration);
+      map[dept].recordCount += 1;
+    });
+    return Object.values(map).sort((a, b) => b.minutes - a.minutes);
+  }, [adminBaseEntries, users]);
+
+  const adminWeekdayHeatmap = useMemo(() => {
+    const labels = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+    const values = Array.from({ length: 7 }, (_, i) => ({
+      label: labels[i],
+      minutes: 0,
+    }));
+
+    adminBaseEntries.forEach((e) => {
+      const d = new Date(e.date);
+      const jsDay = d.getDay();
+      const idx = jsDay === 0 ? 6 : jsDay - 1;
+      values[idx].minutes += parseDurationToMinutes(e.duration);
+    });
+
+    return values;
+  }, [adminBaseEntries]);
+
+  const adminSixMonthTrend = useMemo(() => {
+    const baseMonth = adminFilterMonth || adminStatsMonth || getCurrentMonthKey();
+    const [y, m] = baseMonth.split("-").map(Number);
+    const list = [];
+
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(y, m - 1 - i, 1);
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      let monthEntries = entries.filter((e) => e.date?.startsWith(monthKey));
+
+      if (adminFilterUser !== "all") {
+        monthEntries = monthEntries.filter((e) => e.user_id === adminFilterUser);
+      }
+      if (adminFilterDepartment !== "all") {
+        const deptUsers = users.filter((u) => u.department === adminFilterDepartment).map((u) => u.id);
+        monthEntries = monthEntries.filter((e) => deptUsers.includes(e.user_id));
+      }
+      if (adminFilterWorkType !== "all") {
+        monthEntries = monthEntries.filter((e) => e.work_type === adminFilterWorkType);
+      }
+
+      const minutes = monthEntries.reduce((s, x) => s + parseDurationToMinutes(x.duration), 0);
+      const monthName = new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(d);
+
+      list.push({
+        monthKey,
+        shortLabel: monthName.slice(0, 3),
+        minutes,
+      });
+    }
+
+    return list;
+  }, [
+    entries,
+    users,
+    adminFilterMonth,
+    adminStatsMonth,
+    adminFilterUser,
+    adminFilterDepartment,
+    adminFilterWorkType,
+  ]);
 
   const yearlyTrendData = useMemo(() => {
     if (reportMode !== "yearly" || !selectedYear || !user) return [];
@@ -2427,7 +2741,10 @@ export default function App() {
                   width: "*",
                   stack: [
                     { text: "Yalova Ticaret ve Sanayi Odası", style: "orgTitle" },
-                    { text: filteredUserName ? `Personel: ${filteredUserName}` : "", style: "subInfo" },
+                    {
+                      text: filteredUserName ? `Personel: ${filteredUserName}` : "",
+                      style: "subInfo",
+                    },
                   ],
                 },
               ],
@@ -2480,7 +2797,11 @@ export default function App() {
                       width: "33%",
                       stack: [
                         { text: "________________________", alignment: "center" },
-                        { text: settings.signature2_name || "", style: "signName", alignment: "center" },
+                        {
+                          text: settings.signature2_name || "",
+                          style: "signName",
+                          alignment: "center",
+                        },
                         { text: "Genel Sekreter", style: "signRole", alignment: "center" },
                       ],
                     },
@@ -2488,8 +2809,16 @@ export default function App() {
                       width: "34%",
                       stack: [
                         { text: "________________________", alignment: "center" },
-                        { text: settings.signature3_name || "", style: "signName", alignment: "center" },
-                        { text: "Yönetim Kurulu Başkanı", style: "signRole", alignment: "center" },
+                        {
+                          text: settings.signature3_name || "",
+                          style: "signName",
+                          alignment: "center",
+                        },
+                        {
+                          text: "Yönetim Kurulu Başkanı",
+                          style: "signRole",
+                          alignment: "center",
+                        },
                       ],
                     },
                   ],
@@ -2682,7 +3011,7 @@ export default function App() {
               <div style={{ fontSize: 13, color: COLORS.muted, marginTop: 4 }}>
                 {user.department || "-"} · {user.role}
               </div>
-              {!online ? (
+              {!online && (
                 <div
                   style={{
                     marginTop: 8,
@@ -2693,8 +3022,8 @@ export default function App() {
                 >
                   Çevrimdışı mod aktif
                 </div>
-              ) : null}
-              {syncing ? (
+              )}
+              {syncing && (
                 <div
                   style={{
                     marginTop: 8,
@@ -2705,11 +3034,11 @@ export default function App() {
                 >
                   Senkronizasyon yapılıyor…
                 </div>
-              ) : null}
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {!mobile ? <PrimaryButton onClick={exportPDF}>PDF Al</PrimaryButton> : null}
+              {!mobile && <PrimaryButton onClick={exportPDF}>PDF Al</PrimaryButton>}
               <PrimaryButton onClick={logout}>Çıkış</PrimaryButton>
             </div>
           </div>
@@ -2722,16 +3051,16 @@ export default function App() {
             gap: 12,
           }}
         >
-          <StatPill label="Hafta İçi" value={minutesToText(totalsByType.hafta_ici)} />
-          <StatPill label="Hafta Sonu" value={minutesToText(totalsByType.hafta_sonu)} />
-          <StatPill label="Resmi Tatil" value={minutesToText(totalsByType.resmi_tatil)} />
+          <StatPill label="Hafta İçi" value={minutesToText(totalsByType.hafta_ici)} color={COLORS.blue} />
+          <StatPill label="Hafta Sonu" value={minutesToText(totalsByType.hafta_sonu)} color={COLORS.teal} />
+          <StatPill label="Resmi Tatil" value={minutesToText(totalsByType.resmi_tatil)} color={COLORS.violet} />
           <StatPill label="Genel Toplam" value={minutesToText(totalsByType.genel)} strong />
         </div>
 
         <Card style={{ padding: mobile ? 14 : 20 }}>
           <SectionTitle
-            title="Kişisel Aylık Mesai Özeti"
-            subtitle="İçinde bulunulan ay varsayılan gelir. İstediğiniz ayı seçerek kendi mesai durumunuzu grafiklerle inceleyebilirsiniz."
+            title="Kişisel Aylık Dashboard"
+            subtitle="İçinde bulunduğunuz ay varsayılan gelir. Kendi mesai durumunuzu grafiklerle takip edebilirsiniz."
           />
 
           <div
@@ -2765,16 +3094,21 @@ export default function App() {
               }}
             >
               <StatPill label="Toplam Kayıt" value={String(personalMonthlyTotals.recordCount)} />
-              <StatPill label="Hafta İçi" value={minutesToShortText(personalMonthlyTotals.hafta_ici)} />
-              <StatPill label="Hafta Sonu" value={minutesToShortText(personalMonthlyTotals.hafta_sonu)} />
-              <StatPill label="Toplam Mesai" value={minutesToShortText(personalMonthlyTotals.total)} strong />
+              <StatPill label="Hafta İçi" value={minutesToShortText(personalMonthlyTotals.hafta_ici)} color={COLORS.blue} />
+              <StatPill label="Hafta Sonu" value={minutesToShortText(personalMonthlyTotals.hafta_sonu)} color={COLORS.teal} />
+              <StatPill
+                label="En Yoğun Gün"
+                value={personalBestDay ? personalBestDay.date.slice(8, 10) : "-"}
+                sub={personalBestDay ? minutesToShortText(personalBestDay.minutes) : ""}
+                strong
+              />
             </div>
           </div>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: mobile ? "1fr" : "1.2fr 0.8fr",
+              gridTemplateColumns: mobile ? "1fr" : "1.15fr 0.85fr",
               gap: 14,
             }}
           >
@@ -2784,6 +3118,14 @@ export default function App() {
               haftaSonu={personalMonthlyTotals.hafta_sonu}
               resmiTatil={personalMonthlyTotals.resmi_tatil}
               mobile={mobile}
+            />
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <MiniSixMonthTrend
+              data={personalSixMonthTrend}
+              title="Son 6 Ay Trendi"
+              subtitle="Kendi mesai geçmişinizin kısa görünümü"
             />
           </div>
         </Card>
@@ -2810,7 +3152,7 @@ export default function App() {
               </SelectInput>
             </Field>
 
-            {user.role === "admin" ? (
+            {user.role === "admin" && (
               <Field label="Rapor Kullanıcısı">
                 <SelectInput value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)}>
                   <option value="all">Tüm kullanıcılar</option>
@@ -2821,7 +3163,7 @@ export default function App() {
                   ))}
                 </SelectInput>
               </Field>
-            ) : null}
+            )}
 
             {reportMode === "monthly" ? (
               <Field label="Ay">
@@ -2847,7 +3189,7 @@ export default function App() {
               </Field>
             )}
 
-            {!mobile ? <PrimaryButton onClick={exportPDF}>PDF Al</PrimaryButton> : null}
+            {!mobile && <PrimaryButton onClick={exportPDF}>PDF Al</PrimaryButton>}
           </div>
         </Card>
 
@@ -2873,7 +3215,7 @@ export default function App() {
           )}
         </div>
 
-        {activeTab === "entry" ? (
+        {activeTab === "entry" && (
           <Card style={{ padding: mobile ? 14 : 20 }}>
             <SectionTitle
               title={editingEntryId ? "Mesai Kaydını Düzenle" : "Yeni Mesai Kaydı"}
@@ -2894,7 +3236,7 @@ export default function App() {
                   marginBottom: 12,
                 }}
               >
-                {user.role === "admin" ? (
+                {user.role === "admin" && (
                   <Field label="Kayıt Girilecek Kullanıcı">
                     <SelectInput value={entryUserId} onChange={(e) => setEntryUserId(e.target.value)}>
                       <option value="">Kullanıcı seçin</option>
@@ -2907,7 +3249,7 @@ export default function App() {
                         ))}
                     </SelectInput>
                   </Field>
-                ) : null}
+                )}
 
                 <Field label="Tarih">
                   <TextInput
@@ -2971,17 +3313,17 @@ export default function App() {
                 <PrimaryButton type="submit" full={mobile} success>
                   {editingEntryId ? "Güncellemeyi Kaydet" : "Kaydet"}
                 </PrimaryButton>
-                {editingEntryId ? (
+                {editingEntryId && (
                   <PrimaryButton type="button" onClick={resetEntryForm} full={mobile}>
                     İptal
                   </PrimaryButton>
-                ) : null}
+                )}
               </div>
             </form>
           </Card>
-        ) : null}
+        )}
 
-        {activeTab === "report" ? (
+        {activeTab === "report" && (
           <Card style={{ padding: mobile ? 14 : 20 }}>
             <SectionTitle
               title="Rapor Önizleme"
@@ -3057,7 +3399,7 @@ export default function App() {
                   </tbody>
                 </table>
 
-                {reportMode === "yearly" ? (
+                {reportMode === "yearly" && (
                   <YearlyTrendChart
                     data={yearlyTrendData}
                     selectedYear={selectedYear}
@@ -3070,13 +3412,13 @@ export default function App() {
                         : user.name
                     }
                   />
-                ) : null}
+                )}
               </div>
             </div>
           </Card>
-        ) : null}
+        )}
 
-        {activeTab === "records" ? (
+        {activeTab === "records" && (
           <Card style={{ padding: mobile ? 14 : 20 }}>
             <SectionTitle
               title="Kayıtlar"
@@ -3096,9 +3438,9 @@ export default function App() {
               ))}
             </div>
           </Card>
-        ) : null}
+        )}
 
-        {activeTab === "security" ? (
+        {activeTab === "security" && (
           <Card style={{ padding: mobile ? 14 : 20 }}>
             <SectionTitle
               title="Güvenlik"
@@ -3118,10 +3460,7 @@ export default function App() {
                   placeholder="Eski şifre"
                   value={passwordForm.oldPassword}
                   onChange={(e) =>
-                    setPasswordForm((p) => ({
-                      ...p,
-                      oldPassword: e.target.value,
-                    }))
+                    setPasswordForm((p) => ({ ...p, oldPassword: e.target.value }))
                   }
                 />
               </Field>
@@ -3132,10 +3471,7 @@ export default function App() {
                   placeholder="Yeni şifre"
                   value={passwordForm.newPassword}
                   onChange={(e) =>
-                    setPasswordForm((p) => ({
-                      ...p,
-                      newPassword: e.target.value,
-                    }))
+                    setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))
                   }
                 />
               </Field>
@@ -3146,10 +3482,7 @@ export default function App() {
                   placeholder="Yeni şifre tekrar"
                   value={passwordForm.confirmPassword}
                   onChange={(e) =>
-                    setPasswordForm((p) => ({
-                      ...p,
-                      confirmPassword: e.target.value,
-                    }))
+                    setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))
                   }
                 />
               </Field>
@@ -3158,88 +3491,191 @@ export default function App() {
               Şifreyi Güncelle
             </PrimaryButton>
           </Card>
-        ) : null}
+        )}
 
-        {user.role === "admin" && activeTab === "admin" ? (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: mobile ? "1fr" : tablet ? "1fr" : "1.05fr 0.95fr",
-              gap: 16,
-            }}
-          >
-            <div style={{ display: "grid", gap: 16 }}>
-              <Card style={{ padding: mobile ? 14 : 20 }}>
-                <SectionTitle
-                  title="Aylık Kullanıcı İstatistikleri"
-                  subtitle="Seçilen aya göre tüm kullanıcıların toplam mesai özeti."
+        {user.role === "admin" && activeTab === "admin" && (
+          <div style={{ display: "grid", gap: 16 }}>
+            <Card style={{ padding: mobile ? 14 : 20 }}>
+              <SectionTitle
+                title="Yönetim Dashboard"
+                subtitle="Kapsamlı yönetim görünümü: KPI, filtreler, trendler ve detay analizleri."
+              />
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: mobile ? "1fr" : tablet ? "repeat(2, 1fr)" : "repeat(5, minmax(0, 1fr))",
+                  gap: 10,
+                  marginBottom: 16,
+                }}
+              >
+                <StatPill
+                  label="Toplam Mesai"
+                  value={minutesToText(adminKpi.totalMinutes)}
+                  strong
                 />
+                <StatPill
+                  label="Aylık Değişim"
+                  value={adminKpi.monthChange}
+                  color={
+                    adminKpi.monthChange.startsWith("+")
+                      ? COLORS.emerald
+                      : adminKpi.monthChange.startsWith("-")
+                      ? COLORS.rose
+                      : COLORS.slate
+                  }
+                  sub={`Önceki dönem: ${minutesToText(previousMonthStatsTotals.totalMinutes)}`}
+                />
+                <StatPill
+                  label="Aktif Kullanıcı"
+                  value={String(adminKpi.activeUsers)}
+                  color={COLORS.blue}
+                />
+                <StatPill
+                  label="Ort. Kayıt Süresi"
+                  value={minutesToShortText(adminKpi.avgRecordMinutes)}
+                  color={COLORS.teal}
+                />
+                <StatPill
+                  label="En Yoğun Gün"
+                  value={adminKpi.bestDay ? adminKpi.bestDay[0] : "-"}
+                  sub={adminKpi.bestDay ? minutesToShortText(adminKpi.bestDay[1]) : ""}
+                  color={COLORS.violet}
+                />
+              </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: mobile ? "1fr" : "220px 1fr",
-                    gap: 12,
-                    alignItems: "end",
-                    marginBottom: 14,
-                  }}
-                >
-                  <Field label="Ay Seçimi">
-                    <SelectInput
-                      value={adminStatsMonth}
-                      onChange={(e) => setAdminStatsMonth(e.target.value)}
-                    >
-                      <option value="">Ay seçin</option>
-                      {months.map((m) => (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: mobile ? "1fr" : "repeat(6, minmax(0, 1fr))",
+                  gap: 10,
+                }}
+              >
+                <Field label="Yıl">
+                  <SelectInput value={adminFilterYear} onChange={(e) => setAdminFilterYear(e.target.value)}>
+                    <option value="">Tüm yıllar</option>
+                    {years.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </Field>
+
+                <Field label="Ay">
+                  <SelectInput value={adminFilterMonth} onChange={(e) => setAdminFilterMonth(e.target.value)}>
+                    <option value="">Tüm aylar</option>
+                    {months
+                      .filter((m) => !adminFilterYear || m.startsWith(adminFilterYear))
+                      .map((m) => (
                         <option key={m} value={m}>
                           {formatMonth(m)}
                         </option>
                       ))}
-                    </SelectInput>
-                  </Field>
+                  </SelectInput>
+                </Field>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: mobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))",
-                      gap: 10,
-                    }}
+                <Field label="Kullanıcı">
+                  <SelectInput value={adminFilterUser} onChange={(e) => setAdminFilterUser(e.target.value)}>
+                    <option value="all">Tüm kullanıcılar</option>
+                    {users
+                      .filter((u) => u.role !== "admin")
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}
+                        </option>
+                      ))}
+                  </SelectInput>
+                </Field>
+
+                <Field label="Birim">
+                  <SelectInput
+                    value={adminFilterDepartment}
+                    onChange={(e) => setAdminFilterDepartment(e.target.value)}
                   >
-                    <StatPill label="Toplam Kullanıcı" value={String(adminMonthlyStats.length)} />
-                    <StatPill label="Aktif Kullanıcı" value={String(adminStatsTotals.activeUsers)} />
-                    <StatPill label="Toplam Kayıt" value={String(adminStatsTotals.totalRecords)} />
-                    <StatPill
-                      label="Toplam Mesai"
-                      value={minutesToText(adminStatsTotals.totalMinutes)}
-                      strong
-                    />
-                  </div>
-                </div>
+                    <option value="all">Tüm birimler</option>
+                    {departments.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </Field>
 
-                <div style={{ display: "grid", gap: 14 }}>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: mobile ? "1fr" : "1.15fr 0.85fr",
-                      gap: 14,
-                    }}
+                <Field label="Mesai Türü">
+                  <SelectInput
+                    value={adminFilterWorkType}
+                    onChange={(e) => setAdminFilterWorkType(e.target.value)}
                   >
-                    <EnhancedBarChart data={adminChartData} mobile={mobile} />
-                    <EnhancedDonutChart data={adminPieData} mobile={mobile} />
-                  </div>
+                    <option value="all">Tüm türler</option>
+                    <option value="hafta_ici">Hafta İçi</option>
+                    <option value="hafta_sonu">Hafta Sonu</option>
+                    <option value="resmi_tatil">Resmi Tatil</option>
+                  </SelectInput>
+                </Field>
 
-                  <EnhancedStatsTable
-                    data={adminMonthlyStats}
-                    mobile={mobile}
-                    onDrilldown={(u) => setDrilldownUser(u)}
+                <Field label="Ara">
+                  <TextInput
+                    placeholder="Kullanıcı / birim"
+                    value={adminSearchTerm}
+                    onChange={(e) => setAdminSearchTerm(e.target.value)}
                   />
-                </div>
-              </Card>
+                </Field>
+              </div>
+            </Card>
 
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: mobile ? "1fr" : "1.15fr 0.85fr",
+                gap: 16,
+              }}
+            >
+              <EnhancedBarChart data={adminChartData} mobile={mobile} />
+              <EnhancedDonutChart data={adminPieData} mobile={mobile} />
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: mobile ? "1fr" : "1fr 1fr",
+                gap: 16,
+              }}
+            >
+              <MiniSixMonthTrend
+                data={adminSixMonthTrend}
+                title="Son 6 Ay Trend"
+                subtitle="Seçili filtrelere göre yakın dönem eğilimi"
+              />
+              <DepartmentBarChart data={adminDeptData} mobile={mobile} />
+            </div>
+
+            <WeekdayHeatmap weekdayData={adminWeekdayHeatmap} />
+
+            <Card style={{ padding: mobile ? 14 : 20 }}>
+              <SectionTitle
+                title="Kullanıcı İstatistik Tablosu"
+                subtitle="Sıralanabilir, aranabilir ve detay açılabilir tablo görünümü."
+              />
+              <EnhancedStatsTable
+                data={adminMonthlyStats}
+                mobile={mobile}
+                onDrilldown={(u) => setDrilldownUser(u)}
+                searchTerm={adminSearchTerm}
+              />
+            </Card>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: mobile ? "1fr" : tablet ? "1fr" : "1.1fr 0.9fr",
+                gap: 16,
+              }}
+            >
               <Card style={{ padding: mobile ? 14 : 20 }}>
                 <SectionTitle
                   title="Kullanıcı Yönetimi"
-                  subtitle="Admin, personel şifrelerini buradan güncelleyebilir."
+                  subtitle="Admin, personel ekleyebilir ve şifre güncelleyebilir."
                 />
 
                 <div
@@ -3289,7 +3725,7 @@ export default function App() {
                         padding: 14,
                         display: "grid",
                         gap: 12,
-                        background: "#fff",
+                        background: COLORS.white,
                       }}
                     >
                       <div
@@ -3309,21 +3745,12 @@ export default function App() {
                             justifyItems: "start",
                           }}
                         >
-                          <div
-                            style={{
-                              fontWeight: 800,
-                              textAlign: "left",
-                              width: "100%",
-                            }}
-                          >
-                            {u.name}
-                          </div>
+                          <div style={{ fontWeight: 800, width: "100%" }}>{u.name}</div>
                           <div
                             style={{
                               fontSize: 13,
                               color: COLORS.muted,
                               marginTop: 4,
-                              textAlign: "left",
                               width: "100%",
                             }}
                           >
@@ -3368,67 +3795,73 @@ export default function App() {
                   ))}
                 </div>
               </Card>
-            </div>
 
-            <div style={{ display: "grid", gap: 16 }}>
-              <Card style={{ padding: mobile ? 14 : 20 }}>
-                <SectionTitle title="İmzacı Ayarları" subtitle="PDF raporlarında kullanılır." />
-                <div style={{ display: "grid", gap: 10 }}>
-                  <Field label="Genel Sekreter">
-                    <TextInput
-                      placeholder="Genel Sekreter"
-                      value={settings.signature2_name || ""}
-                      onChange={(e) =>
-                        setSettings((p) => ({
-                          ...p,
-                          signature2_name: e.target.value,
-                        }))
-                      }
-                    />
-                  </Field>
+              <div style={{ display: "grid", gap: 16 }}>
+                <Card style={{ padding: mobile ? 14 : 20 }}>
+                  <SectionTitle
+                    title="İmzacı Ayarları"
+                    subtitle="PDF raporlarında kullanılır."
+                  />
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <Field label="Genel Sekreter">
+                      <TextInput
+                        placeholder="Genel Sekreter"
+                        value={settings.signature2_name || ""}
+                        onChange={(e) =>
+                          setSettings((p) => ({
+                            ...p,
+                            signature2_name: e.target.value,
+                          }))
+                        }
+                      />
+                    </Field>
 
-                  <Field label="Yönetim Kurulu Başkanı">
-                    <TextInput
-                      placeholder="Yönetim Kurulu Başkanı"
-                      value={settings.signature3_name || ""}
-                      onChange={(e) =>
-                        setSettings((p) => ({
-                          ...p,
-                          signature3_name: e.target.value,
-                        }))
-                      }
-                    />
-                  </Field>
+                    <Field label="Yönetim Kurulu Başkanı">
+                      <TextInput
+                        placeholder="Yönetim Kurulu Başkanı"
+                        value={settings.signature3_name || ""}
+                        onChange={(e) =>
+                          setSettings((p) => ({
+                            ...p,
+                            signature3_name: e.target.value,
+                          }))
+                        }
+                      />
+                    </Field>
 
-                  <PrimaryButton onClick={saveSettings} full={mobile}>
-                    Kaydet
-                  </PrimaryButton>
-                </div>
-              </Card>
+                    <PrimaryButton onClick={saveSettings} full={mobile}>
+                      Kaydet
+                    </PrimaryButton>
+                  </div>
+                </Card>
 
-              <Card style={{ padding: mobile ? 14 : 20 }}>
-                <SectionTitle title="İşlem Logları" subtitle="En güncel işlemler üstte görünür." />
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 8,
-                    maxHeight: mobile ? undefined : 420,
-                    overflow: "auto",
-                  }}
-                >
-                  {logs.map((l) => (
-                    <div
-                      key={l.id}
-                      style={{ borderBottom: `1px solid ${COLORS.border}`, paddingBottom: 8 }}
-                    >
-                      <div style={{ fontSize: 13 }}>{l.message}</div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
+                <Card style={{ padding: mobile ? 14 : 20 }}>
+                  <SectionTitle
+                    title="İşlem Logları"
+                    subtitle="En güncel işlemler üstte görünür."
+                  />
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 8,
+                      maxHeight: mobile ? undefined : 420,
+                      overflow: "auto",
+                    }}
+                  >
+                    {logs.map((l) => (
+                      <div
+                        key={l.id}
+                        style={{ borderBottom: `1px solid ${COLORS.border}`, paddingBottom: 8 }}
+                      >
+                        <div style={{ fontSize: 13 }}>{l.message}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
             </div>
           </div>
-        ) : null}
+        )}
       </div>
 
       {drilldownUser ? (
@@ -3441,7 +3874,7 @@ export default function App() {
         />
       ) : null}
 
-      {mobile && user ? (
+      {mobile && user && (
         <div
           style={{
             position: "fixed",
@@ -3463,7 +3896,7 @@ export default function App() {
             </PrimaryButton>
           </Card>
         </div>
-      ) : null}
+      )}
     </AppShell>
   );
 }
