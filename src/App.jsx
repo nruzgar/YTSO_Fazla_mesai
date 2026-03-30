@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import bcrypt from "bcryptjs";
 
-const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v4";
+const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v6";
+const SESSION_KEY = "ytso_active_session_v1";
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 dakika
 
 function formatMonth(monthKey) {
   if (!monthKey) return "";
@@ -19,13 +21,23 @@ function formatToday() {
 
 function calcDuration(start, end) {
   if (!start || !end) return "0:00";
+
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
+
   let diff = eh * 60 + em - (sh * 60 + sm);
   if (diff < 0) diff += 24 * 60;
-  const remainder = diff % 60;
-  if (remainder > 0 && remainder < 30) diff += 30 - remainder;
-  else if (remainder > 30) diff += 60 - remainder;
+
+  // Yönetmelik yorumu:
+  // 0-30 dk => 30 dk
+  // 31+ dk => üst saate tamamla
+  if (diff <= 30) {
+    diff = 30;
+  } else {
+    const remainder = diff % 60;
+    if (remainder !== 0) diff += 60 - remainder;
+  }
+
   return `${Math.floor(diff / 60)}:${String(diff % 60).padStart(2, "0")}`;
 }
 
@@ -66,6 +78,36 @@ function getQueue() {
 
 function setQueue(items) {
   localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(items));
+}
+
+function saveSession(user) {
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({
+      user,
+      expiresAt: Date.now() + SESSION_TTL_MS,
+    })
+  );
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.user || !parsed?.expiresAt) return null;
+    if (Date.now() > parsed.expiresAt) {
+      clearSession();
+      return null;
+    }
+    return parsed.user;
+  } catch {
+    return null;
+  }
 }
 
 function AppShell({ children, mobile }) {
@@ -149,7 +191,29 @@ function PrimaryButton({
   active,
   danger,
   ghost,
+  success,
 }) {
+  let background = "#fff";
+  let color = "#0f172a";
+  let border = "1px solid #cbd5e1";
+
+  if (success) {
+    background = "#16a34a";
+    color = "#fff";
+    border = "1px solid #16a34a";
+  } else if (danger) {
+    background = "#fef2f2";
+    color = "#b91c1c";
+    border = "1px solid #fecaca";
+  } else if (active) {
+    background = "#2563eb";
+    color = "#fff";
+    border = "1px solid #2563eb";
+  } else if (ghost) {
+    background = "transparent";
+    border = "1px solid transparent";
+  }
+
   return (
     <button
       type={type}
@@ -158,21 +222,9 @@ function PrimaryButton({
         minHeight: 46,
         padding: "12px 16px",
         borderRadius: 14,
-        border: danger
-          ? "1px solid #fecaca"
-          : active
-          ? "1px solid #2563eb"
-          : ghost
-          ? "1px solid transparent"
-          : "1px solid #cbd5e1",
-        background: danger
-          ? "#fef2f2"
-          : active
-          ? "#2563eb"
-          : ghost
-          ? "transparent"
-          : "#fff",
-        color: danger ? "#b91c1c" : active ? "#fff" : "#0f172a",
+        border,
+        background,
+        color,
         fontWeight: 700,
         cursor: "pointer",
         width: full ? "100%" : undefined,
@@ -266,7 +318,7 @@ function Field({ label, children }) {
   );
 }
 
-function EntryCard({ item, mobile }) {
+function EntryCard({ item, mobile, canEdit, canDelete, onEdit, onDelete }) {
   return (
     <div
       style={{
@@ -298,13 +350,23 @@ function EntryCard({ item, mobile }) {
       <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.45 }}>
         {item.description}
       </div>
+      {(canEdit || canDelete) && (
+        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+          {canEdit && <PrimaryButton onClick={() => onEdit(item)}>Düzenle</PrimaryButton>}
+          {canDelete && (
+            <PrimaryButton danger onClick={() => onDelete(item)}>
+              Sil
+            </PrimaryButton>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 export default function App() {
   const [users, setUsers] = useState([]);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(loadSession());
   const [entries, setEntries] = useState([]);
   const [logs, setLogs] = useState([]);
   const [settings, setSettings] = useState({
@@ -343,6 +405,7 @@ export default function App() {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [reportMode, setReportMode] = useState("monthly");
+  const [editingEntryId, setEditingEntryId] = useState(null);
 
   const mobile = viewportWidth < 768;
   const tablet = viewportWidth >= 768 && viewportWidth < 1180;
@@ -372,18 +435,33 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (user) saveSession(user);
+    else clearSession();
+  }, [user]);
+
+  useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
     const onOnline = () => setOnline(true);
     const onOffline = () => setOnline(false);
+
+    const touch = () => {
+      if (user) saveSession(user);
+    };
+
     window.addEventListener("resize", onResize);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
+    window.addEventListener("click", touch);
+    window.addEventListener("keydown", touch);
+
     return () => {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
+      window.removeEventListener("click", touch);
+      window.removeEventListener("keydown", touch);
     };
-  }, []);
+  }, [user]);
 
   const addLog = async (message) => {
     if (!online) return;
@@ -421,6 +499,18 @@ export default function App() {
     if (online) syncOfflineQueue();
   }, [online]);
 
+  const resetEntryForm = () => {
+    setForm({
+      date: "",
+      start: "",
+      end: "",
+      description: "",
+      work_type: "hafta_ici",
+    });
+    setEntryUserId("");
+    setEditingEntryId(null);
+  };
+
   const loginUser = async () => {
     const { data, error } = await supabase
       .from("users")
@@ -455,6 +545,7 @@ export default function App() {
     }
 
     setUser(data);
+    saveSession(data);
   };
 
   const logout = () => {
@@ -470,6 +561,8 @@ export default function App() {
       newPassword: "",
       confirmPassword: "",
     });
+    resetEntryForm();
+    clearSession();
   };
 
   const addUser = async () => {
@@ -494,6 +587,7 @@ export default function App() {
     await addLog(`Yeni kullanıcı eklendi: ${newUser.name}`);
     setNewUser({ name: "", password: "", department: "" });
     loadAll();
+    alert("Kullanıcı başarıyla eklendi.");
   };
 
   const changePassword = async () => {
@@ -569,6 +663,7 @@ export default function App() {
     }
     await addLog(`Kullanıcı silindi: ${name}`);
     loadAll();
+    alert("Kullanıcı silindi.");
   };
 
   const saveSettings = async () => {
@@ -614,6 +709,8 @@ export default function App() {
     const targetUser =
       user.role === "admin" && entryUserId
         ? users.find((u) => u.id === entryUserId)
+        : editingEntryId
+        ? users.find((u) => u.id === entryUserId) || user
         : user;
 
     if (!targetUser) {
@@ -632,19 +729,30 @@ export default function App() {
       duration: calcDuration(form.start, form.end),
     };
 
+    if (editingEntryId) {
+      const { error } = await supabase
+        .from("entries")
+        .update(payload)
+        .eq("id", editingEntryId);
+
+      if (error) {
+        alert("Mesai kaydı güncellenemedi: " + error.message);
+        return;
+      }
+
+      await addLog(`${user.name}, ${targetUser.name} için mesai kaydını güncelledi`);
+      resetEntryForm();
+      loadAll();
+      alert("Mesai kaydı güncellendi.");
+      return;
+    }
+
     if (!online) {
       const queue = getQueue();
       queue.push({ ...payload, _queuedAt: new Date().toISOString() });
       setQueue(queue);
       setEntries((prev) => [{ id: `offline-${Date.now()}`, ...payload }, ...prev]);
-      setForm({
-        date: "",
-        start: "",
-        end: "",
-        description: "",
-        work_type: "hafta_ici",
-      });
-      if (user.role === "admin") setEntryUserId("");
+      resetEntryForm();
       alert("İnternet yok. Kayıt cihazda tutuldu; bağlantı gelince gönderilecek.");
       return;
     }
@@ -661,15 +769,41 @@ export default function App() {
       await addLog(`${targetUser.name} mesai kaydı ekledi`);
     }
 
-    setForm({
-      date: "",
-      start: "",
-      end: "",
-      description: "",
-      work_type: "hafta_ici",
-    });
-    if (user.role === "admin") setEntryUserId("");
+    resetEntryForm();
     loadAll();
+    alert("Mesai kaydedildi.");
+  };
+
+  const startEditEntry = (entry) => {
+    setEditingEntryId(entry.id);
+    setEntryUserId(entry.user_id || "");
+    setForm({
+      date: entry.date || "",
+      start: entry.start || "",
+      end: entry.end || "",
+      description: entry.description || "",
+      work_type: entry.work_type || "hafta_ici",
+    });
+    setActiveTab("entry");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDeleteEntry = async (entry) => {
+    const ok = window.confirm(
+      `${entry.date} tarihli mesai kaydı silinsin mi? Bu işlem geri alınamaz.`
+    );
+    if (!ok) return;
+
+    const { error } = await supabase.from("entries").delete().eq("id", entry.id);
+    if (error) {
+      alert("Mesai kaydı silinemedi: " + error.message);
+      return;
+    }
+
+    if (editingEntryId === entry.id) resetEntryForm();
+    await addLog(`${user.name}, ${entry.user_name} için mesai kaydını sildi`);
+    await loadAll();
+    alert("Mesai kaydı silindi.");
   };
 
   const months = [
@@ -1244,7 +1378,7 @@ export default function App() {
         {activeTab === "entry" && (
           <Card style={{ padding: mobile ? 14 : 20 }}>
             <SectionTitle
-              title="Yeni Mesai Kaydı"
+              title={editingEntryId ? "Mesai Kaydını Düzenle" : "Yeni Mesai Kaydı"}
               subtitle="Telefon, tablet ve masaüstünde hızlı veri girişi için optimize edildi."
             />
             <form onSubmit={submitEntry}>
@@ -1343,11 +1477,18 @@ export default function App() {
                   marginTop: 14,
                   display: "flex",
                   justifyContent: mobile ? "stretch" : "flex-start",
+                  gap: 10,
+                  flexWrap: "wrap",
                 }}
               >
-                <PrimaryButton type="submit" full={mobile}>
-                  Kaydet
+                <PrimaryButton type="submit" full={mobile} success>
+                  {editingEntryId ? "Güncellemeyi Kaydet" : "Kaydet"}
                 </PrimaryButton>
+                {editingEntryId && (
+                  <PrimaryButton type="button" onClick={resetEntryForm} full={mobile}>
+                    İptal
+                  </PrimaryButton>
+                )}
               </div>
             </form>
           </Card>
@@ -1468,7 +1609,15 @@ export default function App() {
             />
             <div style={{ display: "grid", gap: 10 }}>
               {visibleEntries.map((item) => (
-                <EntryCard key={item.id} item={item} mobile={mobile} />
+                <EntryCard
+                  key={item.id}
+                  item={item}
+                  mobile={mobile}
+                  canEdit
+                  canDelete
+                  onEdit={startEditEntry}
+                  onDelete={handleDeleteEntry}
+                />
               ))}
             </div>
           </Card>
