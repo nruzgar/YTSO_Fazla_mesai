@@ -5,7 +5,7 @@ import { Analytics } from "@vercel/analytics/react";
 
 const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v6";
 const SESSION_KEY = "ytso_active_session_v1";
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 dakika
+const SESSION_TTL_MS = 30 * 60 * 1000;
 
 function formatMonth(monthKey) {
   if (!monthKey) return "";
@@ -29,9 +29,6 @@ function calcDuration(start, end) {
   let diff = eh * 60 + em - (sh * 60 + sm);
   if (diff < 0) diff += 24 * 60;
 
-  // Yönetmelik yorumu:
-  // 0-30 dk => 30 dk
-  // 31+ dk => üst saate tamamla
   if (diff <= 30) {
     diff = 30;
   } else {
@@ -269,7 +266,6 @@ function SimpleBarChart({ data, mobile }) {
 function CorporatePieChart({ data, mobile }) {
   const filtered = data.filter((x) => x.minutes > 0).slice(0, 6);
   const total = filtered.reduce((sum, item) => sum + item.minutes, 0);
-
   const colors = ["#1e3a8a", "#2563eb", "#0f766e", "#0891b2", "#7c3aed", "#f59e0b"];
 
   if (!filtered.length || total <= 0) {
@@ -294,7 +290,6 @@ function CorporatePieChart({ data, mobile }) {
   const r = 72;
   const strokeWidth = 30;
   const circumference = 2 * Math.PI * r;
-
   let accumulated = 0;
 
   return (
@@ -357,23 +352,10 @@ function CorporatePieChart({ data, mobile }) {
             })}
 
             <circle cx={cx} cy={cy} r="48" fill="#fff" />
-            <text
-              x={cx}
-              y={cy - 4}
-              textAnchor="middle"
-              fontSize="14"
-              fontWeight="800"
-              fill="#0f172a"
-            >
+            <text x={cx} y={cy - 4} textAnchor="middle" fontSize="14" fontWeight="800" fill="#0f172a">
               Toplam
             </text>
-            <text
-              x={cx}
-              y={cy + 18}
-              textAnchor="middle"
-              fontSize="12"
-              fill="#475569"
-            >
+            <text x={cx} y={cy + 18} textAnchor="middle" fontSize="12" fill="#475569">
               {minutesToText(total)}
             </text>
           </svg>
@@ -458,12 +440,8 @@ function MonthlyStatsTable({ data, mobile }) {
               {item.department || "-"}
             </div>
             <div style={{ marginTop: 10, display: "grid", gap: 6, fontSize: 13 }}>
-              <div>
-                Toplam Mesai: <strong>{item.durationText}</strong>
-              </div>
-              <div>
-                Kayıt Sayısı: <strong>{item.recordCount}</strong>
-              </div>
+              <div>Toplam Mesai: <strong>{item.durationText}</strong></div>
+              <div>Kayıt Sayısı: <strong>{item.recordCount}</strong></div>
               <div>Hafta İçi: {minutesToText(item.hafta_ici)}</div>
               <div>Hafta Sonu: {minutesToText(item.hafta_sonu)}</div>
               <div>Resmi Tatil: {minutesToText(item.resmi_tatil)}</div>
@@ -479,15 +457,7 @@ function MonthlyStatsTable({ data, mobile }) {
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
         <thead>
           <tr style={{ background: "#f8fafc" }}>
-            {[
-              "Kullanıcı",
-              "Birim",
-              "Kayıt",
-              "Hafta İçi",
-              "Hafta Sonu",
-              "Resmi Tatil",
-              "Toplam",
-            ].map((head) => (
+            {["Kullanıcı", "Birim", "Kayıt", "Hafta İçi", "Hafta Sonu", "Resmi Tatil", "Toplam"].map((head) => (
               <th
                 key={head}
                 style={{
@@ -686,11 +656,7 @@ function YearlyTrendChart({ data, selectedYear, mobile, currentUserName }) {
         />
         <StatPill
           label="Aylık Ortalama"
-          value={minutesToText(
-            Math.round(
-              data.reduce((sum, item) => sum + item.minutes, 0) / 12
-            )
-          )}
+          value={minutesToText(Math.round(data.reduce((sum, item) => sum + item.minutes, 0) / 12))}
         />
       </div>
     </div>
@@ -934,9 +900,7 @@ export default function App() {
     ] = await Promise.all([
       supabase.from("users").select("*").order("name"),
       supabase.from("entries").select("*").order("date", { ascending: false }),
-      supabase.from("logs").select("*").order("created_at", {
-        ascending: false,
-      }),
+      supabase.from("logs").select("*").order("created_at", { ascending: false }),
       supabase.from("settings").select("*").limit(1).maybeSingle(),
     ]);
     setUsers(usersData || []);
@@ -958,7 +922,6 @@ export default function App() {
     const onResize = () => setViewportWidth(window.innerWidth);
     const onOnline = () => setOnline(true);
     const onOffline = () => setOnline(false);
-
     const touch = () => {
       if (user) saveSession(user);
     };
@@ -1001,11 +964,7 @@ export default function App() {
     setQueue(remaining);
     await loadAll();
     if (queue.length !== remaining.length) {
-      await addLog(
-        `Çevrimdışı kayıtlar senkronize edildi: ${
-          queue.length - remaining.length
-        }`
-      );
+      await addLog(`Çevrimdışı kayıtlar senkronize edildi: ${queue.length - remaining.length}`);
     }
     setSyncing(false);
   };
@@ -1047,10 +1006,7 @@ export default function App() {
       ok = login.password === data.password;
       if (ok) {
         const newHash = await bcrypt.hash(login.password, 10);
-        await supabase
-          .from("users")
-          .update({ password_hash: newHash })
-          .eq("id", data.id);
+        await supabase.from("users").update({ password_hash: newHash }).eq("id", data.id);
       }
     }
 
@@ -1108,11 +1064,7 @@ export default function App() {
 
   const changePassword = async () => {
     if (!user) return;
-    if (
-      !passwordForm.oldPassword ||
-      !passwordForm.newPassword ||
-      !passwordForm.confirmPassword
-    ) {
+    if (!passwordForm.oldPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
       alert("Tüm şifre alanlarını doldurun.");
       return;
     }
@@ -1125,11 +1077,7 @@ export default function App() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+    const { data, error } = await supabase.from("users").select("*").eq("id", user.id).maybeSingle();
 
     if (error || !data) {
       alert("Kullanıcı bilgisi alınamadı.");
@@ -1149,10 +1097,7 @@ export default function App() {
     }
 
     const password_hash = await bcrypt.hash(passwordForm.newPassword, 10);
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({ password_hash })
-      .eq("id", user.id);
+    const { error: updateError } = await supabase.from("users").update({ password_hash }).eq("id", user.id);
 
     if (updateError) {
       alert("Şifre güncellenemedi: " + updateError.message);
@@ -1170,8 +1115,7 @@ export default function App() {
   };
 
   const deleteUser = async (id, name) => {
-    if (!window.confirm(`${name} kullanıcısını silmek istiyor musunuz?`))
-      return;
+    if (!window.confirm(`${name} kullanıcısını silmek istiyor musunuz?`)) return;
     const { error } = await supabase.from("users").delete().eq("id", id);
     if (error) {
       alert("Kullanıcı silinemedi: " + error.message);
@@ -1183,11 +1127,7 @@ export default function App() {
   };
 
   const saveSettings = async () => {
-    const { data: current } = await supabase
-      .from("settings")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
+    const { data: current } = await supabase.from("settings").select("*").limit(1).maybeSingle();
     if (current?.id) {
       await supabase
         .from("settings")
@@ -1211,13 +1151,7 @@ export default function App() {
     e.preventDefault();
     if (!user) return;
 
-    if (
-      !form.date ||
-      !form.start ||
-      !form.end ||
-      !form.description ||
-      !form.work_type
-    ) {
+    if (!form.date || !form.start || !form.end || !form.description || !form.work_type) {
       alert("Tüm alanları doldurun.");
       return;
     }
@@ -1246,11 +1180,7 @@ export default function App() {
     };
 
     if (editingEntryId) {
-      const { error } = await supabase
-        .from("entries")
-        .update(payload)
-        .eq("id", editingEntryId);
-
+      const { error } = await supabase.from("entries").update(payload).eq("id", editingEntryId);
       if (error) {
         alert("Mesai kaydı güncellenemedi: " + error.message);
         return;
@@ -1305,9 +1235,7 @@ export default function App() {
   };
 
   const handleDeleteEntry = async (entry) => {
-    const ok = window.confirm(
-      `${entry.date} tarihli mesai kaydı silinsin mi? Bu işlem geri alınamaz.`
-    );
+    const ok = window.confirm(`${entry.date} tarihli mesai kaydı silinsin mi? Bu işlem geri alınamaz.`);
     if (!ok) return;
 
     const { error } = await supabase.from("entries").delete().eq("id", entry.id);
@@ -1322,17 +1250,8 @@ export default function App() {
     alert("Mesai kaydı silindi.");
   };
 
-  const months = [
-    ...new Set(entries.map((x) => x.date?.slice(0, 7)).filter(Boolean)),
-  ]
-    .sort()
-    .reverse();
-
-  const years = [
-    ...new Set(entries.map((x) => x.date?.slice(0, 4)).filter(Boolean)),
-  ]
-    .sort()
-    .reverse();
+  const months = [...new Set(entries.map((x) => x.date?.slice(0, 7)).filter(Boolean))].sort().reverse();
+  const years = [...new Set(entries.map((x) => x.date?.slice(0, 4)).filter(Boolean))].sort().reverse();
 
   useEffect(() => {
     if (!adminStatsMonth && months.length) {
@@ -1341,19 +1260,14 @@ export default function App() {
   }, [months, adminStatsMonth]);
 
   const visibleEntries = useMemo(() => {
-    let data =
-      user?.role === "admin"
-        ? entries
-        : entries.filter((x) => x.user_id === user?.id);
+    let data = user?.role === "admin" ? entries : entries.filter((x) => x.user_id === user?.id);
 
     if (user?.role === "admin" && selectedUser !== "all") {
       data = data.filter((x) => x.user_id === selectedUser);
     }
-
     if (reportMode === "monthly" && selectedMonth) {
       data = data.filter((x) => x.date?.startsWith(selectedMonth));
     }
-
     if (reportMode === "yearly" && selectedYear) {
       data = data.filter((x) => x.date?.startsWith(selectedYear));
     }
@@ -1376,18 +1290,11 @@ export default function App() {
           if (item.work_type === "hafta_sonu") acc.hafta_sonu += mins;
           else if (item.work_type === "resmi_tatil") acc.resmi_tatil += mins;
           else acc.hafta_ici += mins;
-
           acc.total += mins;
           acc.recordCount += 1;
           return acc;
         },
-        {
-          hafta_ici: 0,
-          hafta_sonu: 0,
-          resmi_tatil: 0,
-          total: 0,
-          recordCount: 0,
-        }
+        { hafta_ici: 0, hafta_sonu: 0, resmi_tatil: 0, total: 0, recordCount: 0 }
       );
 
       return {
@@ -1414,21 +1321,12 @@ export default function App() {
         if (item.minutes > 0) acc.activeUsers += 1;
         return acc;
       },
-      {
-        totalMinutes: 0,
-        totalRecords: 0,
-        activeUsers: 0,
-      }
+      { totalMinutes: 0, totalRecords: 0, activeUsers: 0 }
     );
   }, [adminMonthlyStats]);
 
-  const adminChartData = useMemo(() => {
-    return adminMonthlyStats.slice(0, 8);
-  }, [adminMonthlyStats]);
-
-  const adminPieData = useMemo(() => {
-    return adminMonthlyStats;
-  }, [adminMonthlyStats]);
+  const adminChartData = useMemo(() => adminMonthlyStats.slice(0, 8), [adminMonthlyStats]);
+  const adminPieData = useMemo(() => adminMonthlyStats, [adminMonthlyStats]);
 
   const yearlyTrendData = useMemo(() => {
     if (reportMode !== "yearly" || !selectedYear || !user) return [];
@@ -1451,10 +1349,7 @@ export default function App() {
     return monthLabels.map((month) => {
       const monthKey = `${selectedYear}-${month.key}`;
       const monthEntries = visibleEntries.filter((x) => x.date?.startsWith(monthKey));
-      const totalMinutes = monthEntries.reduce(
-        (sum, item) => sum + parseDurationToMinutes(item.duration),
-        0
-      );
+      const totalMinutes = monthEntries.reduce((sum, item) => sum + parseDurationToMinutes(item.duration), 0);
 
       return {
         monthKey,
@@ -1540,9 +1435,10 @@ export default function App() {
           : (selectedYear || "yil").replace(/\s+/g, "_");
 
       const body = [
-        ["No", "Tarih", "Başl.", "Bitiş", "Süre", "Mesai Türü", "Açıklama", "Kişi"].map(
-          (x) => ({ text: x, style: "tableHeader" })
-        ),
+        ["No", "Tarih", "Başl.", "Bitiş", "Süre", "Mesai Türü", "Açıklama", "Kişi"].map((x) => ({
+          text: x,
+          style: "tableHeader",
+        })),
         ...visibleEntries.map((x, i) => [
           { text: String(i + 1), alignment: "center" },
           x.date || "",
@@ -1645,11 +1541,7 @@ export default function App() {
                           style: "signName",
                           alignment: "center",
                         },
-                        {
-                          text: "Yönetim Kurulu Başkanı",
-                          style: "signRole",
-                          alignment: "center",
-                        },
+                        { text: "Yönetim Kurulu Başkanı", style: "signRole", alignment: "center" },
                       ],
                     },
                   ],
@@ -1668,9 +1560,7 @@ export default function App() {
                       alignment: "right",
                     },
                     {
-                      text: `Resmi Tatil Toplamı: ${minutesToText(
-                        totalsByType.resmi_tatil
-                      )}`,
+                      text: `Resmi Tatil Toplamı: ${minutesToText(totalsByType.resmi_tatil)}`,
                       style: "totalLite",
                       alignment: "right",
                     },
@@ -1748,9 +1638,7 @@ export default function App() {
         images: logoDataUrl ? { logo: logoDataUrl } : {},
       };
 
-      pdfMake
-        .createPdf(docDefinition)
-        .download(`${safeUserName}-${safePeriod}-mesai-raporu.pdf`);
+      pdfMake.createPdf(docDefinition).download(`${safeUserName}-${safePeriod}-mesai-raporu.pdf`);
     } catch (error) {
       console.error("PDF oluşturma hatası:", error);
       alert("PDF oluşturulurken hata oluştu. F12 > Console ekranını kontrol edin.");
@@ -1797,9 +1685,7 @@ export default function App() {
                 <TextInput
                   placeholder="Kullanıcı adı"
                   value={login.name}
-                  onChange={(e) =>
-                    setLogin((p) => ({ ...p, name: e.target.value }))
-                  }
+                  onChange={(e) => setLogin((p) => ({ ...p, name: e.target.value }))}
                 />
               </Field>
 
@@ -1808,9 +1694,7 @@ export default function App() {
                   type="password"
                   placeholder="Şifre"
                   value={login.password}
-                  onChange={(e) =>
-                    setLogin((p) => ({ ...p, password: e.target.value }))
-                  }
+                  onChange={(e) => setLogin((p) => ({ ...p, password: e.target.value }))}
                 />
               </Field>
 
@@ -1895,14 +1779,8 @@ export default function App() {
           }}
         >
           <StatPill label="Hafta İçi" value={minutesToText(totalsByType.hafta_ici)} />
-          <StatPill
-            label="Hafta Sonu"
-            value={minutesToText(totalsByType.hafta_sonu)}
-          />
-          <StatPill
-            label="Resmi Tatil"
-            value={minutesToText(totalsByType.resmi_tatil)}
-          />
+          <StatPill label="Hafta Sonu" value={minutesToText(totalsByType.hafta_sonu)} />
+          <StatPill label="Resmi Tatil" value={minutesToText(totalsByType.resmi_tatil)} />
           <StatPill label="Genel Toplam" value={minutesToText(totalsByType.genel)} strong />
         </div>
 
@@ -1922,10 +1800,7 @@ export default function App() {
             }}
           >
             <Field label="Rapor Türü">
-              <SelectInput
-                value={reportMode}
-                onChange={(e) => setReportMode(e.target.value)}
-              >
+              <SelectInput value={reportMode} onChange={(e) => setReportMode(e.target.value)}>
                 <option value="monthly">Aylık Rapor</option>
                 <option value="yearly">Yıllık Rapor</option>
               </SelectInput>
@@ -1933,10 +1808,7 @@ export default function App() {
 
             {user.role === "admin" && (
               <Field label="Rapor Kullanıcısı">
-                <SelectInput
-                  value={selectedUser}
-                  onChange={(e) => setSelectedUser(e.target.value)}
-                >
+                <SelectInput value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)}>
                   <option value="all">Tüm kullanıcılar</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -1949,10 +1821,7 @@ export default function App() {
 
             {reportMode === "monthly" ? (
               <Field label="Ay">
-                <SelectInput
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                >
+                <SelectInput value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
                   <option value="">Ay seçin</option>
                   {months.map((m) => (
                     <option key={m} value={m}>
@@ -1963,10 +1832,7 @@ export default function App() {
               </Field>
             ) : (
               <Field label="Yıl">
-                <SelectInput
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                >
+                <SelectInput value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
                   <option value="">Yıl seçin</option>
                   {years.map((y) => (
                     <option key={y} value={y}>
@@ -1982,25 +1848,19 @@ export default function App() {
         </Card>
 
         <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
-          {["entry", "report", "records", "security", ...(user.role === "admin" ? ["admin"] : [])].map(
-            (tab) => (
-              <PrimaryButton
-                key={tab}
-                active={activeTab === tab}
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab === "entry"
-                  ? "Mesai Girişi"
-                  : tab === "report"
-                  ? "Rapor"
-                  : tab === "records"
-                  ? "Kayıtlar"
-                  : tab === "security"
-                  ? "Güvenlik"
-                  : "Yönetim Paneli"}
-              </PrimaryButton>
-            )
-          )}
+          {["entry", "report", "records", "security", ...(user.role === "admin" ? ["admin"] : [])].map((tab) => (
+            <PrimaryButton key={tab} active={activeTab === tab} onClick={() => setActiveTab(tab)}>
+              {tab === "entry"
+                ? "Mesai Girişi"
+                : tab === "report"
+                ? "Rapor"
+                : tab === "records"
+                ? "Kayıtlar"
+                : tab === "security"
+                ? "Güvenlik"
+                : "Yönetim Paneli"}
+            </PrimaryButton>
+          ))}
         </div>
 
         {activeTab === "entry" && (
@@ -2026,10 +1886,7 @@ export default function App() {
               >
                 {user.role === "admin" && (
                   <Field label="Kayıt Girilecek Kullanıcı">
-                    <SelectInput
-                      value={entryUserId}
-                      onChange={(e) => setEntryUserId(e.target.value)}
-                    >
+                    <SelectInput value={entryUserId} onChange={(e) => setEntryUserId(e.target.value)}>
                       <option value="">Kullanıcı seçin</option>
                       {users
                         .filter((u) => u.role !== "admin")
@@ -2060,9 +1917,7 @@ export default function App() {
                   <TextInput
                     type="time"
                     value={form.start}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, start: e.target.value }))
-                    }
+                    onChange={(e) => setForm((p) => ({ ...p, start: e.target.value }))}
                   />
                 </Field>
 
@@ -2070,18 +1925,14 @@ export default function App() {
                   <TextInput
                     type="time"
                     value={form.end}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, end: e.target.value }))
-                    }
+                    onChange={(e) => setForm((p) => ({ ...p, end: e.target.value }))}
                   />
                 </Field>
 
                 <Field label="Mesai Türü">
                   <SelectInput
                     value={form.work_type}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, work_type: e.target.value }))
-                    }
+                    onChange={(e) => setForm((p) => ({ ...p, work_type: e.target.value }))}
                   >
                     <option value="hafta_ici">Hafta İçi</option>
                     <option value="hafta_sonu">Hafta Sonu</option>
@@ -2094,9 +1945,7 @@ export default function App() {
                 <TextArea
                   placeholder="Yapılan iş açıklaması"
                   value={form.description}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, description: e.target.value }))
-                  }
+                  onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
                 />
               </Field>
 
@@ -2142,9 +1991,7 @@ export default function App() {
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <img src="/logo.png" alt="logo" style={{ height: 40 }} />
                     <div>
-                      <div style={{ fontWeight: 800 }}>
-                        Yalova Ticaret ve Sanayi Odası
-                      </div>
+                      <div style={{ fontWeight: 800 }}>Yalova Ticaret ve Sanayi Odası</div>
                       <div style={{ fontSize: 12, color: "#64748b" }}>
                         FAZLA ÇALIŞMA TAKİP RAPORU
                       </div>
@@ -2162,64 +2009,38 @@ export default function App() {
                   </div>
                 </div>
 
-                <table
-                  style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
-                >
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: "#f1f5f9" }}>
-                      {[
-                        "No",
-                        "Tarih",
-                        "Başlangıç",
-                        "Bitiş",
-                        "Süre",
-                        "Mesai Türü",
-                        "Açıklama",
-                        "Kişi",
-                      ].map((head) => (
-                        <th
-                          key={head}
-                          style={{
-                            border: "1px solid #cbd5e1",
-                            padding: 8,
-                            textAlign: "left",
-                          }}
-                        >
-                          {head}
-                        </th>
-                      ))}
+                      {["No", "Tarih", "Başlangıç", "Bitiş", "Süre", "Mesai Türü", "Açıklama", "Kişi"].map(
+                        (head) => (
+                          <th
+                            key={head}
+                            style={{
+                              border: "1px solid #cbd5e1",
+                              padding: 8,
+                              textAlign: "left",
+                            }}
+                          >
+                            {head}
+                          </th>
+                        )
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {visibleEntries.map((row, index) => (
-                      <tr
-                        key={row.id}
-                        style={{ background: index % 2 === 0 ? "#fff" : "#fafcff" }}
-                      >
-                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>
-                          {index + 1}
-                        </td>
-                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>
-                          {row.date}
-                        </td>
-                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>
-                          {row.start}
-                        </td>
-                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>
-                          {row.end}
-                        </td>
-                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>
-                          {row.duration}
-                        </td>
+                      <tr key={row.id} style={{ background: index % 2 === 0 ? "#fff" : "#fafcff" }}>
+                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>{index + 1}</td>
+                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>{row.date}</td>
+                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>{row.start}</td>
+                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>{row.end}</td>
+                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>{row.duration}</td>
                         <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>
                           {workTypeLabel(row.work_type)}
                         </td>
-                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>
-                          {row.description}
-                        </td>
-                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>
-                          {row.user_name}
-                        </td>
+                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>{row.description}</td>
+                        <td style={{ border: "1px solid #e2e8f0", padding: 8 }}>{row.user_name}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2246,10 +2067,7 @@ export default function App() {
 
         {activeTab === "records" && (
           <Card style={{ padding: mobile ? 14 : 20 }}>
-            <SectionTitle
-              title="Kayıtlar"
-              subtitle="Mobilde kart görünümü, masaüstünde hızlı tarama."
-            />
+            <SectionTitle title="Kayıtlar" subtitle="Mobilde kart görünümü, masaüstünde hızlı tarama." />
             <div style={{ display: "grid", gap: 10 }}>
               {visibleEntries.map((item) => (
                 <EntryCard
@@ -2268,10 +2086,7 @@ export default function App() {
 
         {activeTab === "security" && (
           <Card style={{ padding: mobile ? 14 : 20 }}>
-            <SectionTitle
-              title="Güvenlik"
-              subtitle="Şifre değiştirme ve hesap güvenliği."
-            />
+            <SectionTitle title="Güvenlik" subtitle="Şifre değiştirme ve hesap güvenliği." />
             <div
               style={{
                 display: "grid",
@@ -2285,12 +2100,7 @@ export default function App() {
                   type="password"
                   placeholder="Eski şifre"
                   value={passwordForm.oldPassword}
-                  onChange={(e) =>
-                    setPasswordForm((p) => ({
-                      ...p,
-                      oldPassword: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setPasswordForm((p) => ({ ...p, oldPassword: e.target.value }))}
                 />
               </Field>
 
@@ -2299,12 +2109,7 @@ export default function App() {
                   type="password"
                   placeholder="Yeni şifre"
                   value={passwordForm.newPassword}
-                  onChange={(e) =>
-                    setPasswordForm((p) => ({
-                      ...p,
-                      newPassword: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))}
                 />
               </Field>
 
@@ -2313,12 +2118,7 @@ export default function App() {
                   type="password"
                   placeholder="Yeni şifre tekrar"
                   value={passwordForm.confirmPassword}
-                  onChange={(e) =>
-                    setPasswordForm((p) => ({
-                      ...p,
-                      confirmPassword: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))}
                 />
               </Field>
             </div>
@@ -2353,10 +2153,7 @@ export default function App() {
                   }}
                 >
                   <Field label="Ay Seçimi">
-                    <SelectInput
-                      value={adminStatsMonth}
-                      onChange={(e) => setAdminStatsMonth(e.target.value)}
-                    >
+                    <SelectInput value={adminStatsMonth} onChange={(e) => setAdminStatsMonth(e.target.value)}>
                       <option value="">Ay seçin</option>
                       {months.map((m) => (
                         <option key={m} value={m}>
@@ -2417,9 +2214,7 @@ export default function App() {
                     <TextInput
                       placeholder="Kullanıcı adı"
                       value={newUser.name}
-                      onChange={(e) =>
-                        setNewUser((p) => ({ ...p, name: e.target.value }))
-                      }
+                      onChange={(e) => setNewUser((p) => ({ ...p, name: e.target.value }))}
                     />
                   </Field>
 
@@ -2427,9 +2222,7 @@ export default function App() {
                     <TextInput
                       placeholder="Şifre"
                       value={newUser.password}
-                      onChange={(e) =>
-                        setNewUser((p) => ({ ...p, password: e.target.value }))
-                      }
+                      onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))}
                     />
                   </Field>
 
@@ -2437,9 +2230,7 @@ export default function App() {
                     <TextInput
                       placeholder="Birim"
                       value={newUser.department}
-                      onChange={(e) =>
-                        setNewUser((p) => ({ ...p, department: e.target.value }))
-                      }
+                      onChange={(e) => setNewUser((p) => ({ ...p, department: e.target.value }))}
                     />
                   </Field>
 
@@ -2493,11 +2284,7 @@ export default function App() {
                         </div>
                       </div>
                       {u.role !== "admin" ? (
-                        <PrimaryButton
-                          danger
-                          onClick={() => deleteUser(u.id, u.name)}
-                          full={mobile}
-                        >
+                        <PrimaryButton danger onClick={() => deleteUser(u.id, u.name)} full={mobile}>
                           Sil
                         </PrimaryButton>
                       ) : null}
@@ -2509,10 +2296,7 @@ export default function App() {
 
             <div style={{ display: "grid", gap: 16 }}>
               <Card style={{ padding: mobile ? 14 : 20 }}>
-                <SectionTitle
-                  title="İmzacı Ayarları"
-                  subtitle="PDF raporlarında kullanılır."
-                />
+                <SectionTitle title="İmzacı Ayarları" subtitle="PDF raporlarında kullanılır." />
                 <div style={{ display: "grid", gap: 10 }}>
                   <Field label="Genel Sekreter">
                     <TextInput
@@ -2547,10 +2331,7 @@ export default function App() {
               </Card>
 
               <Card style={{ padding: mobile ? 14 : 20 }}>
-                <SectionTitle
-                  title="İşlem Logları"
-                  subtitle="En güncel işlemler üstte görünür."
-                />
+                <SectionTitle title="İşlem Logları" subtitle="En güncel işlemler üstte görünür." />
                 <div
                   style={{
                     display: "grid",
@@ -2560,10 +2341,7 @@ export default function App() {
                   }}
                 >
                   {logs.map((l) => (
-                    <div
-                      key={l.id}
-                      style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 8 }}
-                    >
+                    <div key={l.id} style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 8 }}>
                       <div style={{ fontSize: 13 }}>{l.message}</div>
                     </div>
                   ))}
