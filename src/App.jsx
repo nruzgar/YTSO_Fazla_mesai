@@ -6,6 +6,11 @@ const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v6";
 const SESSION_KEY = "ytso_active_session_v1";
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function formatMonth(monthKey) {
   if (!monthKey) return "";
   const [year, month] = monthKey.split("-").map(Number);
@@ -49,6 +54,15 @@ function minutesToText(minutes) {
   const h = Math.floor(safeMinutes / 60);
   const m = safeMinutes % 60;
   return `${h} saat ${String(m).padStart(2, "0")} dakika`;
+}
+
+function minutesToShortText(minutes) {
+  const safeMinutes = Number(minutes) || 0;
+  const h = Math.floor(safeMinutes / 60);
+  const m = safeMinutes % 60;
+  if (safeMinutes === 0) return "0 sa";
+  if (m === 0) return `${h} sa`;
+  return `${h}.${String(Math.round((m / 60) * 10)).padStart(1, "0")} sa`;
 }
 
 function workTypeLabel(value) {
@@ -113,7 +127,8 @@ function AppShell({ children, mobile }) {
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
+        background:
+          "radial-gradient(circle at top left, #f8fbff 0%, #eef4ff 35%, #f8fafc 100%)",
         padding: mobile ? 12 : 24,
         paddingBottom: mobile ? 96 : 24,
         fontFamily:
@@ -130,10 +145,10 @@ function Card({ children, style }) {
   return (
     <div
       style={{
-        background: "rgba(255,255,255,0.95)",
+        background: "rgba(255,255,255,0.96)",
         border: "1px solid #e2e8f0",
         borderRadius: 24,
-        boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
+        boxShadow: "0 12px 32px rgba(15,23,42,0.06)",
         ...style,
       }}
     >
@@ -662,6 +677,185 @@ function YearlyTrendChart({ data, selectedYear, mobile, currentUserName }) {
   );
 }
 
+function MonthlyPersonalChart({ data, mobile }) {
+  const maxValue = Math.max(...data.map((x) => x.minutes), 0);
+
+  if (!data.length || !data.some((x) => x.minutes > 0)) {
+    return (
+      <div
+        style={{
+          padding: 18,
+          border: "1px dashed #cbd5e1",
+          borderRadius: 16,
+          color: "#64748b",
+          fontSize: 13,
+          background: "#f8fafc",
+        }}
+      >
+        Seçilen ay için kişisel grafik verisi bulunamadı.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: 18,
+        padding: mobile ? 12 : 16,
+        background: "#fff",
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>
+        Gün Bazlı Mesai Grafiği
+      </div>
+      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+        Seçilen ay içindeki günlük toplam mesai görünümü
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))`,
+          gap: mobile ? 4 : 6,
+          alignItems: "end",
+          minHeight: 230,
+        }}
+      >
+        {data.map((item, index) => {
+          const height = maxValue > 0 ? Math.max(10, (item.minutes / maxValue) * 150) : 10;
+          const active = item.minutes > 0;
+
+          return (
+            <div
+              key={`${item.day}-${index}`}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: 6,
+              }}
+            >
+              <div
+                title={`${item.label}: ${item.durationText}`}
+                style={{
+                  width: "100%",
+                  maxWidth: 18,
+                  height,
+                  borderRadius: 999,
+                  background: active
+                    ? "linear-gradient(180deg, #0f766e 0%, #14b8a6 100%)"
+                    : "#e2e8f0",
+                  transition: "all .25s ease",
+                }}
+              />
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "#64748b",
+                  fontWeight: active ? 700 : 500,
+                }}
+              >
+                {item.day}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TypeBreakdownChart({ haftaIci, haftaSonu, resmiTatil, mobile }) {
+  const data = [
+    { label: "Hafta İçi", minutes: haftaIci, color: "#2563eb" },
+    { label: "Hafta Sonu", minutes: haftaSonu, color: "#0f766e" },
+    { label: "Resmi Tatil", minutes: resmiTatil, color: "#7c3aed" },
+  ];
+  const total = data.reduce((sum, item) => sum + item.minutes, 0);
+
+  if (total <= 0) {
+    return (
+      <div
+        style={{
+          padding: 18,
+          border: "1px dashed #cbd5e1",
+          borderRadius: 16,
+          color: "#64748b",
+          fontSize: 13,
+          background: "#f8fafc",
+        }}
+      >
+        Dağılım grafiği için veri bulunamadı.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: 18,
+        padding: mobile ? 12 : 16,
+        background: "#fff",
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>
+        Mesai Türü Dağılımı
+      </div>
+      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
+        Seçilen ay için mesai türlerinin oranı
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {data.map((item) => {
+          const width = total > 0 ? `${(item.minutes / total) * 100}%` : "0%";
+          const percent = total > 0 ? ((item.minutes / total) * 100).toFixed(1) : "0.0";
+
+          return (
+            <div key={item.label} style={{ display: "grid", gap: 6 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  fontSize: 13,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ fontWeight: 700 }}>{item.label}</div>
+                <div style={{ color: "#475569" }}>
+                  {minutesToText(item.minutes)} · %{percent}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  width: "100%",
+                  height: 12,
+                  borderRadius: 999,
+                  background: "#e2e8f0",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width,
+                    height: "100%",
+                    borderRadius: 999,
+                    background: item.color,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PrimaryButton({
   children,
   onClick,
@@ -872,6 +1066,7 @@ export default function App() {
     newPassword: "",
     confirmPassword: "",
   });
+  const [adminPasswordMap, setAdminPasswordMap] = useState({});
   const [form, setForm] = useState({
     date: "",
     start: "",
@@ -884,6 +1079,7 @@ export default function App() {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [adminStatsMonth, setAdminStatsMonth] = useState("");
+  const [personalStatsMonth, setPersonalStatsMonth] = useState("");
   const [reportMode, setReportMode] = useState("monthly");
   const [editingEntryId, setEditingEntryId] = useState(null);
 
@@ -1025,6 +1221,7 @@ export default function App() {
     setSelectedMonth("");
     setSelectedYear("");
     setAdminStatsMonth("");
+    setPersonalStatsMonth("");
     setReportMode("monthly");
     setActiveTab("entry");
     setPasswordForm({
@@ -1059,6 +1256,31 @@ export default function App() {
     setNewUser({ name: "", password: "", department: "" });
     loadAll();
     alert("Kullanıcı başarıyla eklendi.");
+  };
+
+  const adminUpdateUserPassword = async (targetUser) => {
+    const newPassword = adminPasswordMap[targetUser.id] || "";
+
+    if (!newPassword || newPassword.trim().length < 6) {
+      alert("Yeni şifre en az 6 karakter olmalıdır.");
+      return;
+    }
+
+    const password_hash = await bcrypt.hash(newPassword.trim(), 10);
+    const { error } = await supabase
+      .from("users")
+      .update({ password_hash })
+      .eq("id", targetUser.id);
+
+    if (error) {
+      alert("Şifre güncellenemedi: " + error.message);
+      return;
+    }
+
+    await addLog(`${user.name}, ${targetUser.name} kullanıcısının şifresini güncelledi`);
+    setAdminPasswordMap((prev) => ({ ...prev, [targetUser.id]: "" }));
+    alert(`${targetUser.name} için şifre güncellendi.`);
+    loadAll();
   };
 
   const changePassword = async () => {
@@ -1253,10 +1475,18 @@ export default function App() {
   const years = [...new Set(entries.map((x) => x.date?.slice(0, 4)).filter(Boolean))].sort().reverse();
 
   useEffect(() => {
-    if (!adminStatsMonth && months.length) {
-      setAdminStatsMonth(months[0]);
+    const currentMonth = getCurrentMonthKey();
+    if (!adminStatsMonth) {
+      setAdminStatsMonth(months.includes(currentMonth) ? currentMonth : months[0] || "");
     }
   }, [months, adminStatsMonth]);
+
+  useEffect(() => {
+    const currentMonth = getCurrentMonthKey();
+    if (!personalStatsMonth) {
+      setPersonalStatsMonth(months.includes(currentMonth) ? currentMonth : months[0] || currentMonth);
+    }
+  }, [months, personalStatsMonth]);
 
   const visibleEntries = useMemo(() => {
     let data = user?.role === "admin" ? entries : entries.filter((x) => x.user_id === user?.id);
@@ -1273,6 +1503,54 @@ export default function App() {
 
     return data;
   }, [entries, user, selectedUser, selectedMonth, selectedYear, reportMode]);
+
+  const ownMonthlyEntries = useMemo(() => {
+    if (!user || !personalStatsMonth) return [];
+    return entries
+      .filter((x) => x.user_id === user.id)
+      .filter((x) => x.date?.startsWith(personalStatsMonth))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [entries, user, personalStatsMonth]);
+
+  const personalMonthlyTotals = useMemo(() => {
+    return ownMonthlyEntries.reduce(
+      (acc, item) => {
+        const mins = parseDurationToMinutes(item.duration);
+        if (item.work_type === "hafta_sonu") acc.hafta_sonu += mins;
+        else if (item.work_type === "resmi_tatil") acc.resmi_tatil += mins;
+        else acc.hafta_ici += mins;
+        acc.total += mins;
+        acc.recordCount += 1;
+        return acc;
+      },
+      { hafta_ici: 0, hafta_sonu: 0, resmi_tatil: 0, total: 0, recordCount: 0 }
+    );
+  }, [ownMonthlyEntries]);
+
+  const personalDailyChartData = useMemo(() => {
+    if (!personalStatsMonth) return [];
+    const [year, month] = personalStatsMonth.split("-").map(Number);
+    if (!year || !month) return [];
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    return Array.from({ length: daysInMonth }, (_, index) => {
+      const day = String(index + 1).padStart(2, "0");
+      const dayKey = `${personalStatsMonth}-${day}`;
+      const dayEntries = ownMonthlyEntries.filter((x) => x.date === dayKey);
+      const totalMinutes = dayEntries.reduce(
+        (sum, item) => sum + parseDurationToMinutes(item.duration),
+        0
+      );
+
+      return {
+        day: String(index + 1),
+        label: dayKey,
+        minutes: totalMinutes,
+        durationText: minutesToText(totalMinutes),
+      };
+    });
+  }, [personalStatsMonth, ownMonthlyEntries]);
 
   const adminMonthlyStats = useMemo(() => {
     if (user?.role !== "admin" || !adminStatsMonth) return [];
@@ -1782,6 +2060,70 @@ export default function App() {
           <StatPill label="Genel Toplam" value={minutesToText(totalsByType.genel)} strong />
         </div>
 
+        <Card style={{ padding: mobile ? 14 : 20 }}>
+          <SectionTitle
+            title="Kişisel Aylık Mesai Özeti"
+            subtitle="İçinde bulunduğunuz ay varsayılan gelir. İstediğiniz ayı seçerek kendi mesai durumunuzu grafiklerle inceleyebilirsiniz."
+          />
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: mobile ? "1fr" : "220px 1fr",
+              gap: 12,
+              alignItems: "end",
+              marginBottom: 14,
+            }}
+          >
+            <Field label="Ay Seçimi">
+              <SelectInput
+                value={personalStatsMonth}
+                onChange={(e) => setPersonalStatsMonth(e.target.value)}
+              >
+                <option value="">Ay seçin</option>
+                {months.map((m) => (
+                  <option key={m} value={m}>
+                    {formatMonth(m)}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: mobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))",
+                gap: 10,
+              }}
+            >
+              <StatPill label="Toplam Kayıt" value={String(personalMonthlyTotals.recordCount)} />
+              <StatPill label="Hafta İçi" value={minutesToShortText(personalMonthlyTotals.hafta_ici)} />
+              <StatPill label="Hafta Sonu" value={minutesToShortText(personalMonthlyTotals.hafta_sonu)} />
+              <StatPill
+                label="Toplam Mesai"
+                value={minutesToShortText(personalMonthlyTotals.total)}
+                strong
+              />
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: mobile ? "1fr" : "1.2fr 0.8fr",
+              gap: 14,
+            }}
+          >
+            <MonthlyPersonalChart data={personalDailyChartData} mobile={mobile} />
+            <TypeBreakdownChart
+              haftaIci={personalMonthlyTotals.hafta_ici}
+              haftaSonu={personalMonthlyTotals.hafta_sonu}
+              resmiTatil={personalMonthlyTotals.resmi_tatil}
+              mobile={mobile}
+            />
+          </div>
+        </Card>
+
         <Card style={{ padding: mobile ? 14 : 18 }}>
           <div
             style={{
@@ -2198,7 +2540,7 @@ export default function App() {
               <Card style={{ padding: mobile ? 14 : 20 }}>
                 <SectionTitle
                   title="Kullanıcı Yönetimi"
-                  subtitle="Mobilde tek kolon, masaüstünde daha geniş düzen."
+                  subtitle="Admin kullanıcılar, personel şifrelerini buradan güncelleyebilir."
                 />
                 <div
                   style={{
@@ -2237,55 +2579,94 @@ export default function App() {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gap: 12 }}>
                   {users.map((u) => (
                     <div
                       key={u.id}
                       style={{
                         border: "1px solid #e2e8f0",
-                        borderRadius: 16,
-                        padding: 12,
-                        display: "flex",
-                        flexDirection: mobile ? "column" : "row",
-                        alignItems: mobile ? "stretch" : "flex-start",
-                        justifyContent: "space-between",
-                        gap: 10,
+                        borderRadius: 18,
+                        padding: 14,
+                        display: "grid",
+                        gap: 12,
+                        background: "#fff",
                       }}
                     >
                       <div
                         style={{
-                          flex: 1,
-                          textAlign: "left",
-                          display: "grid",
-                          justifyItems: "start",
+                          display: "flex",
+                          flexDirection: mobile ? "column" : "row",
+                          alignItems: mobile ? "stretch" : "flex-start",
+                          justifyContent: "space-between",
+                          gap: 10,
                         }}
                       >
                         <div
                           style={{
-                            fontWeight: 800,
+                            flex: 1,
                             textAlign: "left",
-                            width: "100%",
+                            display: "grid",
+                            justifyItems: "start",
                           }}
                         >
-                          {u.name}
+                          <div
+                            style={{
+                              fontWeight: 800,
+                              textAlign: "left",
+                              width: "100%",
+                            }}
+                          >
+                            {u.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              color: "#64748b",
+                              marginTop: 4,
+                              textAlign: "left",
+                              width: "100%",
+                            }}
+                          >
+                            {u.department} · {u.role}
+                          </div>
                         </div>
-                        <div
-                          style={{
-                            fontSize: 13,
-                            color: "#64748b",
-                            marginTop: 4,
-                            textAlign: "left",
-                            width: "100%",
-                          }}
-                        >
-                          {u.department} · {u.role}
-                        </div>
+
+                        {u.role !== "admin" ? (
+                          <PrimaryButton danger onClick={() => deleteUser(u.id, u.name)} full={mobile}>
+                            Sil
+                          </PrimaryButton>
+                        ) : null}
                       </div>
-                      {u.role !== "admin" ? (
-                        <PrimaryButton danger onClick={() => deleteUser(u.id, u.name)} full={mobile}>
-                          Sil
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: mobile ? "1fr" : "1fr auto",
+                          gap: 10,
+                          alignItems: "end",
+                        }}
+                      >
+                        <Field label={`${u.name} için yeni şifre`}>
+                          <TextInput
+                            type="password"
+                            placeholder="En az 6 karakter"
+                            value={adminPasswordMap[u.id] || ""}
+                            onChange={(e) =>
+                              setAdminPasswordMap((prev) => ({
+                                ...prev,
+                                [u.id]: e.target.value,
+                              }))
+                            }
+                          />
+                        </Field>
+
+                        <PrimaryButton
+                          onClick={() => adminUpdateUserPassword(u)}
+                          full={mobile}
+                        >
+                          Şifre Güncelle
                         </PrimaryButton>
-                      ) : null}
+                      </div>
                     </div>
                   ))}
                 </div>
