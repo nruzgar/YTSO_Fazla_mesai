@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import bcrypt from "bcryptjs";
+import { Analytics } from "@vercel/analytics/react";
 
 const OFFLINE_QUEUE_KEY = "ytso_offline_entry_queue_v6";
 const SESSION_KEY = "ytso_active_session_v1";
@@ -536,6 +537,162 @@ function MonthlyStatsTable({ data, mobile }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function YearlyTrendChart({ data, selectedYear, mobile, currentUserName }) {
+  const maxValue = Math.max(...data.map((x) => x.minutes), 0);
+
+  if (!selectedYear) {
+    return (
+      <div
+        style={{
+          padding: 18,
+          border: "1px dashed #cbd5e1",
+          borderRadius: 16,
+          color: "#64748b",
+          fontSize: 13,
+          background: "#f8fafc",
+        }}
+      >
+        Yıllık grafik için önce yıl seçin.
+      </div>
+    );
+  }
+
+  if (!data.some((x) => x.minutes > 0)) {
+    return (
+      <div
+        style={{
+          padding: 18,
+          border: "1px dashed #cbd5e1",
+          borderRadius: 16,
+          color: "#64748b",
+          fontSize: 13,
+          background: "#f8fafc",
+        }}
+      >
+        {selectedYear} yılı için grafik verisi bulunamadı.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: 18,
+        border: "1px solid #e2e8f0",
+        borderRadius: 20,
+        padding: mobile ? 12 : 16,
+        background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+      }}
+    >
+      <div style={{ fontSize: 16, fontWeight: 800 }}>
+        Yıllık Mesai Trend Grafiği
+      </div>
+      <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+        {currentUserName} · {selectedYear} yılı aylara göre toplam mesai
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          display: "grid",
+          gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
+          gap: mobile ? 6 : 10,
+          alignItems: "end",
+          minHeight: 280,
+        }}
+      >
+        {data.map((item, index) => {
+          const height = maxValue > 0 ? Math.max(18, (item.minutes / maxValue) * 180) : 18;
+          const isActive = item.minutes > 0;
+
+          return (
+            <div
+              key={`${item.monthKey}-${index}`}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: 8,
+                minHeight: 240,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  color: isActive ? "#0f172a" : "#94a3b8",
+                  fontWeight: isActive ? 700 : 500,
+                  textAlign: "center",
+                  minHeight: 28,
+                }}
+              >
+                {item.minutes > 0 ? `${Math.round((item.minutes / 60) * 10) / 10} sa` : "-"}
+              </div>
+
+              <div
+                title={`${item.label}: ${item.durationText}`}
+                style={{
+                  width: "100%",
+                  maxWidth: 38,
+                  height,
+                  borderRadius: 16,
+                  background: isActive
+                    ? "linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%)"
+                    : "#e2e8f0",
+                  boxShadow: isActive ? "0 10px 18px rgba(37,99,235,0.18)" : "none",
+                  transition: "all .25s ease",
+                }}
+              />
+
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#475569",
+                  fontWeight: 700,
+                  textAlign: "center",
+                }}
+              >
+                {item.shortLabel}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div
+        style={{
+          marginTop: 14,
+          display: "grid",
+          gridTemplateColumns: mobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+          gap: 10,
+        }}
+      >
+        <StatPill
+          label="Yıllık Toplam"
+          value={minutesToText(data.reduce((sum, item) => sum + item.minutes, 0))}
+          strong
+        />
+        <StatPill
+          label="En Yoğun Ay"
+          value={
+            [...data].sort((a, b) => b.minutes - a.minutes)[0]?.minutes > 0
+              ? [...data].sort((a, b) => b.minutes - a.minutes)[0].label
+              : "-"
+          }
+        />
+        <StatPill
+          label="Aylık Ortalama"
+          value={minutesToText(
+            Math.round(
+              data.reduce((sum, item) => sum + item.minutes, 0) / 12
+            )
+          )}
+        />
+      </div>
     </div>
   );
 }
@@ -1273,6 +1430,42 @@ export default function App() {
     return adminMonthlyStats;
   }, [adminMonthlyStats]);
 
+  const yearlyTrendData = useMemo(() => {
+    if (reportMode !== "yearly" || !selectedYear || !user) return [];
+
+    const monthLabels = [
+      { key: "01", label: "Ocak", shortLabel: "Oca" },
+      { key: "02", label: "Şubat", shortLabel: "Şub" },
+      { key: "03", label: "Mart", shortLabel: "Mar" },
+      { key: "04", label: "Nisan", shortLabel: "Nis" },
+      { key: "05", label: "Mayıs", shortLabel: "May" },
+      { key: "06", label: "Haziran", shortLabel: "Haz" },
+      { key: "07", label: "Temmuz", shortLabel: "Tem" },
+      { key: "08", label: "Ağustos", shortLabel: "Ağu" },
+      { key: "09", label: "Eylül", shortLabel: "Eyl" },
+      { key: "10", label: "Ekim", shortLabel: "Eki" },
+      { key: "11", label: "Kasım", shortLabel: "Kas" },
+      { key: "12", label: "Aralık", shortLabel: "Ara" },
+    ];
+
+    return monthLabels.map((month) => {
+      const monthKey = `${selectedYear}-${month.key}`;
+      const monthEntries = visibleEntries.filter((x) => x.date?.startsWith(monthKey));
+      const totalMinutes = monthEntries.reduce(
+        (sum, item) => sum + parseDurationToMinutes(item.duration),
+        0
+      );
+
+      return {
+        monthKey,
+        label: month.label,
+        shortLabel: month.shortLabel,
+        minutes: totalMinutes,
+        durationText: minutesToText(totalMinutes),
+      };
+    });
+  }, [visibleEntries, reportMode, selectedYear, user]);
+
   const totalsByType = visibleEntries.reduce(
     (acc, item) => {
       const mins = parseDurationToMinutes(item.duration);
@@ -1627,6 +1820,7 @@ export default function App() {
             </div>
           </Card>
         </div>
+        <Analytics />
       </AppShell>
     );
   }
@@ -2030,6 +2224,21 @@ export default function App() {
                     ))}
                   </tbody>
                 </table>
+
+                {reportMode === "yearly" && (
+                  <YearlyTrendChart
+                    data={yearlyTrendData}
+                    selectedYear={selectedYear}
+                    mobile={mobile}
+                    currentUserName={
+                      user.role === "admin"
+                        ? selectedUser === "all"
+                          ? "Tüm kullanıcılar"
+                          : users.find((u) => u.id === selectedUser)?.name || "Seçili kullanıcı"
+                        : user.name
+                    }
+                  />
+                )}
               </div>
             </div>
           </Card>
@@ -2249,18 +2458,35 @@ export default function App() {
                         padding: 12,
                         display: "flex",
                         flexDirection: mobile ? "column" : "row",
-                        alignItems: mobile ? "stretch" : "center",
+                        alignItems: mobile ? "stretch" : "flex-start",
                         justifyContent: "space-between",
                         gap: 10,
                       }}
                     >
-                      <div>
-                        <div style={{ fontWeight: 800 }}>{u.name}</div>
+                      <div
+                        style={{
+                          flex: 1,
+                          textAlign: "left",
+                          display: "grid",
+                          justifyItems: "start",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontWeight: 800,
+                            textAlign: "left",
+                            width: "100%",
+                          }}
+                        >
+                          {u.name}
+                        </div>
                         <div
                           style={{
                             fontSize: 13,
                             color: "#64748b",
                             marginTop: 4,
+                            textAlign: "left",
+                            width: "100%",
                           }}
                         >
                           {u.department} · {u.role}
@@ -2371,6 +2597,8 @@ export default function App() {
           </Card>
         </div>
       )}
+
+      <Analytics />
     </AppShell>
   );
 }
